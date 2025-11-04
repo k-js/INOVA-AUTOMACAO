@@ -2,11 +2,15 @@ import os
 import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from dotenv import load_dotenv  # ← ADICIONE ESTA LINHA
+
+# Carrega variáveis do .env ← ADICIONE ESTA LINHA
+load_dotenv('credenciais/.env')  # ← ADICIONE ESTA LINHA
 
 # Lê o JSON do secret
 google_json = os.environ.get("GOOGLE_JSON")
 if not google_json:
-    raise ValueError("O secret GSHEETS_CREDENTIALS_JSON não está definido!")
+    raise ValueError("❌ O secret GOOGLE_JSON não está definido!")
 
 creds_dict = json.loads(google_json)
 

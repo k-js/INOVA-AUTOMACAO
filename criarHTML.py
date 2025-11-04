@@ -316,11 +316,11 @@ def processa_aba_gera_html(aba,
 
     $(document).ready(function() {
         populateSelects();
-        var value = $(this).val().toLowerCase();
-        $("#organization_table tr.organizationRow").filter(function() {
-            var rowText = $(this).text().toLowerCase();
-            var tooltipText = $(this).find("span").attr("title") ? $(this).find("span").attr("title").toLowerCase() : "";
-            $(this).toggle(rowText.indexOf(value) > -1 || tooltipText.indexOf(value) > -1);
+        $("#search").on("keyup", function() {
+            var value = $(this).val().toLowerCase();
+            $("#organization_table tr.organizationRow").filter(function() {
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            });
         });
     });
 </script>
