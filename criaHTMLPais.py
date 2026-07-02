@@ -64,7 +64,8 @@ def gerar_html_pais(aba,
         status_index = cabecalho.index("STATUS")
         
         # Define as colunas desejadas para o registro no histórico
-        colunas_desejadas = ["NOME", "CATEGORIA", "LINK", "UF", "PAÍS", "CONTEÚDO BALÃO"]
+        coluna_identificador = "Organização" if "Organização" in cabecalho else "NOME"
+        colunas_desejadas = [coluna_identificador, "CATEGORIA", "LINK", "UF", "PAÍS", "CONTEÚDO BALÃO"]
         # Encontra os índices das colunas desejadas que realmente existem no cabeçalho
         indices_colunas_desejadas = []
         colunas_desejadas_presentes = []
@@ -193,7 +194,9 @@ def gerar_html_pais(aba,
         return ' '.join(nome_formatado)
 
     # Aplica a formatação de nome à coluna 'NOME' do DataFrame
-    data['NOME'] = data['NOME'].apply(formatar_nome)
+    col_nome_atual = 'Organização' if 'Organização' in data.columns else 'NOME'
+    data[col_nome_atual] = data[col_nome_atual].apply(formatar_nome)
+    data = data.sort_values(by=col_nome_atual, key=lambda col: col.str.lower())
     # Ordena o DataFrame pela coluna 'NOME' (ignorando maiúsculas/minúsculas)
     data = data.sort_values(by='NOME', key=lambda col: col.str.lower())
 
@@ -230,7 +233,7 @@ def gerar_html_pais(aba,
             link = str(link).strip() if pd.notnull(link) else '#'
             if not link.startswith(('http://', 'https://')):
                 link = 'http://' + link
-            nome = str(row.get('NOME', '') or '').strip()
+            nome = str(row.get('Organização', row.get('NOME', '')) or '').strip()
             uf = str(row.get('UF', '') or '').strip()
             valor_quinta_coluna = str(row.get(quinta_coluna_nome, '') or '').strip()
             categoria = str(row.get('CATEGORIA', '') or '').strip()
