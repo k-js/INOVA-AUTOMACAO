@@ -170,10 +170,18 @@ def processa_aba_gera_html(aba,
         # get_all_records() lê os dados da planilha e os converte em uma lista de dicionários
         dados_para_html = aba_origem.get_all_records()
         data = pd.DataFrame(dados_para_html)
+        
+        # --- TRATAMENTO HÍBRIDO DE COLUNA (ADICIONE ESTE BLOCO AQUI) ---
+        if 'Organização' in data.columns:
+            data['NOME'] = data['Organização']
+        elif 'NOME' not in data.columns:
+            data['NOME'] = ''
+        # ---------------------------------------------------------------
 
     except Exception as e:
         print(f"Erro ao processar aba '{aba}': {e}")
         return None
+
 
     # --- Lógica de Geração HTML e Salvamento ---
     # Se o DataFrame de dados estiver vazio, imprime mensagem e retorna
