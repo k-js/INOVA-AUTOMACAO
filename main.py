@@ -104,6 +104,7 @@ abas_links = {
     "LOGTECHS": "https://inova.ufpr.br/logtechs/",
     "MARTECHS": "https://inova.ufpr.br/martechs/",
     "MOBITECHS": "https://inova.ufpr.br/mobitechs/",
+    "MANAGETECHS": "https://ufpr.br/managetechs/",
     "RETAILTECHS": "https://inova.ufpr.br/retailtechs-2/",
     "SOCIALTECHS": "https://inova.ufpr.br/socialtechs/",
     "TECHS": "https://inova.ufpr.br/techs/",
