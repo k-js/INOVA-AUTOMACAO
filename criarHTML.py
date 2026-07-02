@@ -68,7 +68,8 @@ def processa_aba_gera_html(aba,
         status_index = cabecalho.index("STATUS")
         
         # Define as colunas desejadas para o registro no histórico
-        colunas_desejadas = ["NOME", "CATEGORIA", "LINK", "CIDADE", "UF", "CONTEÚDO BALÃO"]
+        coluna_identificador = "Organização" if "Organização" in cabecalho else "NOME"
+        colunas_desejadas = [coluna_identificador, "CATEGORIA", "LINK", "CIDADE", "UF", "CONTEÚDO BALÃO"]
         # Encontra os índices das colunas desejadas que realmente existem no cabeçalho
         indices_colunas_desejadas = []
         colunas_desejadas_presentes = []
@@ -197,9 +198,9 @@ def processa_aba_gera_html(aba,
         return ' '.join(nome_formatado)
 
     # Aplica a formatação de nome à coluna 'NOME' do DataFrame
-    data['NOME'] = data['NOME'].apply(formatar_nome)
-    # Ordena o DataFrame pela coluna 'NOME' (ignorando maiúsculas/minúsculas)
-    data = data.sort_values(by='NOME', key=lambda col: col.str.lower())
+    col_nome_atual = 'Organização' if 'Organização' in data.columns else 'NOME'
+    data[col_nome_atual] = data[col_nome_atual].apply(formatar_nome)
+    data = data.sort_values(by=col_nome_atual, key=lambda col: col.str.lower())
 
     # Obtém a lista de colunas do DataFrame
     colunas = list(data.columns)
@@ -233,7 +234,7 @@ def processa_aba_gera_html(aba,
             if not link.startswith(('http://', 'https://')):
                 link = 'http://' + link
 
-            nome = safe_str(row.get('NOME'), default='')
+            nome = safe_str(row.get('Organização', row.get('NOME')), default='')
             uf = safe_str(row.get('UF'), default='')
             valor_quinta_coluna = safe_str(row.get(quinta_coluna_nome), default='')
             categoria = safe_str(row.get('CATEGORIA'), default='')
