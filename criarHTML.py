@@ -229,7 +229,7 @@ def processa_aba_gera_html(aba,
     # Define o nome da quinta coluna e os IDs/rótulos dos seletores HTML com base nela
     quinta_coluna_nome = colunas[4]
     seletor_id = "cidadeSelect" if quinta_coluna_nome.upper() == "CIDADE" else "paisSelect"
-    seletor_label = "Todas as Cidades" if quinta_coluna_nome.upper() == "CIDADE" else "Todas as Cidades"
+    seletor_label = "Todas Cidades" if quinta_coluna_nome.upper() == "CIDADE" else "Todos os Países"
     data_attr = "cidade" if quinta_coluna_nome.upper() == "CIDADE" else "pais"
 
     # Função interna para gerar a tabela HTML com os dados da planilha
@@ -271,8 +271,8 @@ def processa_aba_gera_html(aba,
 """
         html += """
 </tbody>
-<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"[...]
-<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></s[...]
+<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     function populateSelects() {
