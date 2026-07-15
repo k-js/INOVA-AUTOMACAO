@@ -171,12 +171,21 @@ def processa_aba_gera_html(aba,
         dados_para_html = aba_origem.get_all_records()
         data = pd.DataFrame(dados_para_html)
         
-        # --- TRATAMENTO HÍBRIDO DE COLUNA (ADICIONE ESTE BLOCO AQUI) ---
-        if 'Organização' in data.columns:
-            data['NOME'] = data['Organização']
+        # --- TRATAMENTO HÍBRIDO DE COLUNA CORRIGIDO ---
+        # Força todas as colunas do DataFrame a ficarem em letras maiúsculas e sem espaços extras
+        data.columns = [str(c).strip().upper() for c in data.columns]
+    
+        # Se existir a coluna ORGANIZAÇÃO (ou ORGANIZACAO), padroniza transformando-a na coluna NOME
+        if 'ORGANIZAÇÃO' in data.columns:
+            data['NOME'] = data['ORGANIZAÇÃO']
+        elif 'ORGANIZACAO' in data.columns:
+            data['NOME'] = data['ORGANIZACAO']
+        elif 'ORGANIZAÇAO' in data.columns:
+            data['NOME'] = data['ORGANIZAÇAO']
         elif 'NOME' not in data.columns:
             data['NOME'] = ''
-        # ---------------------------------------------------------------
+        # -------------------------------------------------------
+
 
     except Exception as e:
         print(f"Erro ao processar aba '{aba}': {e}")
@@ -206,9 +215,8 @@ def processa_aba_gera_html(aba,
         return ' '.join(nome_formatado)
 
     # Aplica a formatação de nome à coluna 'NOME' do DataFrame
-    col_nome_atual = 'Organização' if 'Organização' in data.columns else 'NOME'
-    data[col_nome_atual] = data[col_nome_atual].apply(formatar_nome)
-    data = data.sort_values(by=col_nome_atual, key=lambda col: col.str.lower())
+    data['NOME'] = data['NOME'].apply(formatar_nome)
+    data = data.sort_values(by='NOME', key=lambda col: col.str.lower())
 
     # Obtém a lista de colunas do DataFrame
     colunas = list(data.columns)
@@ -242,7 +250,7 @@ def processa_aba_gera_html(aba,
             if not link.startswith(('http://', 'https://')):
                 link = 'http://' + link
 
-            nome = safe_str(row.get('Organização', row.get('NOME')), default='')
+            nome = safe_str(row.get('NOME'), default='')
             uf = safe_str(row.get('UF'), default='')
             valor_quinta_coluna = safe_str(row.get(quinta_coluna_nome), default='')
             categoria = safe_str(row.get('CATEGORIA'), default='')
