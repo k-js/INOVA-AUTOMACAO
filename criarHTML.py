@@ -226,11 +226,18 @@ def processa_aba_gera_html(aba,
         print("A planilha não tem pelo menos cinco colunas.")
         return None
 
-    # Define o nome da quinta coluna e os IDs/rótulos dos seletores HTML com base nela
-    quinta_coluna_nome = colunas[4]
-    seletor_id = "cidadeSelect" if quinta_coluna_nome.upper() == "CIDADE" else "paisSelect"
-    seletor_label = "Todas Cidades" if quinta_coluna_nome.upper() == "CIDADE" else "Todos os Países"
-    data_attr = "cidade" if quinta_coluna_nome.upper() == "CIDADE" else "pais"
+    # CORRIGIDO: Detecta se a coluna 'CIDADE' existe na tabela, independente da ordem dela
+    if 'CIDADE' in data.columns:
+        quinta_coluna_nome = 'CIDADE'
+        seletor_id = "cidadeSelect"
+        seletor_label = "Todas Cidades"
+        data_attr = "cidade"
+    else:
+        # Se não houver 'CIDADE', assume que a aba trabalha com 'PAIS'
+        quinta_coluna_nome = 'PAIS' if 'PAIS' in data.columns else (colunas[4] if len(colunas) > 4 else '')
+        seletor_id = "paisSelect"
+        seletor_label = "Todos os Países"
+        data_attr = "pais"
 
     # Função interna para gerar a tabela HTML com os dados da planilha
     def generate_html_table(data):
