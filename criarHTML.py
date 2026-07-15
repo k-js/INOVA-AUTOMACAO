@@ -171,20 +171,21 @@ def processa_aba_gera_html(aba,
         dados_para_html = aba_origem.get_all_records()
         data = pd.DataFrame(dados_para_html)
         
-        # --- TRATAMENTO HÍBRIDO DE COLUNA CORRIGIDO ---
-        # Força todas as colunas do DataFrame a ficarem em letras maiúsculas e sem espaços extras
-        data.columns = [str(c).strip().upper() for c in data.columns]
-    
-        # Se existir a coluna ORGANIZAÇÃO (ou ORGANIZACAO), padroniza transformando-a na coluna NOME
-        if 'ORGANIZAÇÃO' in data.columns:
-            data['NOME'] = data['ORGANIZAÇÃO']
-        elif 'ORGANIZACAO' in data.columns:
-            data['NOME'] = data['ORGANIZACAO']
-        elif 'ORGANIZAÇAO' in data.columns:
-            data['NOME'] = data['ORGANIZAÇAO']
+        # --- NOVO TRATAMENTO HÍBRIDO (CORRIGE O ERRO DE DATAFRAME VAZIO) ---
+        # Procura qual variação da coluna existe sem alterar o nome das outras colunas da planilha
+        coluna_identificada = None
+        for col in data.columns:
+            if str(col).strip().upper() in ["NOME", "ORGANIZAÇÃO", "ORGANIZACAO", "ORGANIZAÇAO"]:
+                coluna_identificada = col
+                break
+        
+        # Cria ou padroniza a coluna 'NOME' interna com base no que foi encontrado
+        if coluna_identificada:
+            data['NOME'] = data[coluna_identificada]
         elif 'NOME' not in data.columns:
             data['NOME'] = ''
-        # -------------------------------------------------------
+        # ------------------------------------------------------------------
+
 
 
     except Exception as e:
