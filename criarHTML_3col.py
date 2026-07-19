@@ -4,6 +4,7 @@ import pyperclip
 from datetime import datetime
 import gspread
 import gspread.exceptions
+import unicodedata
 from conexao_api import client
 
 def numero_para_coluna(n):
@@ -12,6 +13,27 @@ def numero_para_coluna(n):
         n, r = divmod(n - 1, 26)
         resultado = chr(65 + r) + resultado
     return resultado
+
+def _normalizar(texto):
+    """Deixa maiúsculo e remove acentos, para comparação flexível de nomes de coluna."""
+    if texto is None:
+        return ''
+    texto = str(texto).strip().upper()
+    texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+    return texto
+
+# ✅ Detecta a coluna de identificação da organização (NOME, ORGANIZAÇÃO, etc.),
+# de forma flexível: ignora maiúsculas/minúsculas e acentos.
+def encontrar_coluna_identificador(cabecalho):
+    variacoes_aceitas = {
+        "NOME OU ORGANIZACAO",
+        "ORGANIZACAO",
+        "NOME",
+    }
+    for col in cabecalho:
+        if _normalizar(col) in variacoes_aceitas:
+            return col  # retorna o nome EXATO como está no cabeçalho da planilha
+    return None
 
 def gerar_html_3COL(
     aba,
@@ -39,7 +61,8 @@ def gerar_html_3COL(
             return None
 
         status_index = cabecalho.index("STATUS")
-        colunas_desejadas = ["NOME", "CATEGORIA", "LINK", "PAÍS", "CONTEÚDO BALÃO"]
+        coluna_identificador = encontrar_coluna_identificador(cabecalho) or "NOME"
+        colunas_desejadas = [coluna_identificador, "CATEGORIA", "LINK", "PAÍS", "CONTEÚDO BALÃO"]
         indices_colunas_desejadas = [cabecalho.index(col) for col in colunas_desejadas if col in cabecalho]
         colunas_presentes = [col for col in colunas_desejadas if col in cabecalho]
 
@@ -74,6 +97,14 @@ def gerar_html_3COL(
             aba_historico.append_rows(novas_linhas_saida + novas_linhas_entrada)
 
         data = pd.DataFrame(aba_origem.get_all_records())
+
+    # ✅ Padroniza a coluna de identificação para 'NOME', não importa se na planilha
+        # ela está como 'NOME', 'ORGANIZAÇÃO', 'Organização', 'ORGANIZACAO', etc.
+        coluna_identificada_df = encontrar_coluna_identificador(list(data.columns))
+        if coluna_identificada_df and coluna_identificada_df != 'NOME':
+            data = data.rename(columns={coluna_identificada_df: 'NOME'})
+        elif 'NOME' not in data.columns:
+            data['NOME'] = ''
 
     except Exception as e:
         print(f"Erro: {e}")
