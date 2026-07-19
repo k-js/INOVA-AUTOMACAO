@@ -4,6 +4,7 @@ import pyperclip
 from datetime import datetime
 import gspread
 import gspread.exceptions # Importa exceções específicas do gspread
+import unicodedata
 
 # Assumindo que 'client' vem de 'conexao_api' e é um objeto gspread.Client autenticado
 # Certifique-se de que conexao_api.py configura um cliente gspread.Client para Sheets API
@@ -23,24 +24,32 @@ def numero_para_coluna(n):
         resultado = chr(65 + r) + resultado
     return resultado
 
-# ✅ NOVA FUNÇÃO PARA DETECTAR COLUNA DE IDENTIFICADOR
+def _normalizar(texto):
+    """Deixa maiúsculo e remove acentos, para comparação flexível de nomes de coluna."""
+    if texto is None:
+        return ''
+    texto = str(texto).strip().upper()
+    texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+    return texto
+
+# ✅ FUNÇÃO PARA DETECTAR COLUNA DE IDENTIFICADOR
 def encontrar_coluna_identificador(cabecalho):
     """
-    Procura pela coluna de identificador (NOME, ORGANIZAÇÃO, NOME OU ORGANIZAÇÃO, etc.)
-    Retorna o nome exato da coluna encontrada ou None se não encontrar.
+    Procura pela coluna de identificador (NOME, ORGANIZAÇÃO, NOME OU ORGANIZAÇÃO, etc.),
+    ignorando maiúsculas/minúsculas e acentos (ex: 'Organização', 'ORGANIZAÇÃO' e
+    'organizacao' são todos reconhecidos).
+    Retorna o nome EXATO da coluna como está no cabeçalho, ou None se não encontrar.
     """
-    variacoes = [
-        "NOME OU ORGANIZAÇÃO",
+    variacoes_aceitas = {
         "NOME OU ORGANIZACAO",
-        "ORGANIZAÇÃO",
         "ORGANIZACAO",
-        "NOME"
-    ]
-    
-    for variacao in variacoes:
-        if variacao in cabecalho:
-            return variacao
-    
+        "NOME",
+    }
+
+    for col in cabecalho:
+        if _normalizar(col) in variacoes_aceitas:
+            return col
+
     return None
 
 # Função principal para processar a aba da planilha e gerar o HTML
@@ -197,14 +206,12 @@ def processa_aba_gera_html(aba,
         # get_all_records() lê os dados da planilha e os converte em uma lista de dicionários
         dados_para_html = aba_origem.get_all_records()
         data = pd.DataFrame(dados_para_html)
+
         
         # --- NOVO TRATAMENTO HÍBRIDO (CORRIGE O ERRO DE DATAFRAME VAZIO) ---
-        # ✅ Procura qual variação da coluna existe sem alterar o nome das outras colunas da planilha
-        coluna_identificada = None
-        for col in data.columns:
-            if str(col).strip().upper() in ["NOME", "ORGANIZAÇÃO", "ORGANIZACAO", "NOME OU ORGANIZAÇÃO", "NOME OU ORGANIZACAO"]:
-                coluna_identificada = col
-                break
+        # ✅ Procura qual variação da coluna existe (ignorando acento/caixa) sem alterar
+        # o nome das outras colunas da planilha
+        coluna_identificada = encontrar_coluna_identificador(list(data.columns))
         
         # Cria ou padroniza a coluna 'NOME' interna com base no que foi encontrado
         if coluna_identificada:
@@ -212,8 +219,6 @@ def processa_aba_gera_html(aba,
         elif 'NOME' not in data.columns:
             data['NOME'] = ''
         # ------------------------------------------------------------------
-
-
 
     except Exception as e:
         print(f"Erro ao processar aba '{aba}': {e}")
