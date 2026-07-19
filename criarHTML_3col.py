@@ -98,7 +98,7 @@ def gerar_html_3COL(
 
         data = pd.DataFrame(aba_origem.get_all_records())
 
-    # ✅ Padroniza a coluna de identificação para 'NOME', não importa se na planilha
+        # ✅ Padroniza a coluna de identificação para 'NOME', não importa se na planilha
         # ela está como 'NOME', 'ORGANIZAÇÃO', 'Organização', 'ORGANIZACAO', etc.
         coluna_identificada_df = encontrar_coluna_identificador(list(data.columns))
         if coluna_identificada_df and coluna_identificada_df != 'NOME':
