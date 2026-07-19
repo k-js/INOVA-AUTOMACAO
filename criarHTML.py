@@ -23,6 +23,26 @@ def numero_para_coluna(n):
         resultado = chr(65 + r) + resultado
     return resultado
 
+# ✅ NOVA FUNÇÃO PARA DETECTAR COLUNA DE IDENTIFICADOR
+def encontrar_coluna_identificador(cabecalho):
+    """
+    Procura pela coluna de identificador (NOME, ORGANIZAÇÃO, NOME OU ORGANIZAÇÃO, etc.)
+    Retorna o nome exato da coluna encontrada ou None se não encontrar.
+    """
+    variacoes = [
+        "NOME OU ORGANIZAÇÃO",
+        "NOME OU ORGANIZACAO",
+        "ORGANIZAÇÃO",
+        "ORGANIZACAO",
+        "NOME"
+    ]
+    
+    for variacao in variacoes:
+        if variacao in cabecalho:
+            return variacao
+    
+    return None
+
 # Função principal para processar a aba da planilha e gerar o HTML
 def processa_aba_gera_html(aba,
                            output_directory=r"C:\Users\marco\OneDrive\Área de Trabalho\Economia\INOVA\tabelas-atualizadas"):
@@ -67,8 +87,15 @@ def processa_aba_gera_html(aba,
         # Encontra o índice da coluna 'STATUS'
         status_index = cabecalho.index("STATUS")
         
-        # Define as colunas desejadas para o registro no histórico
-        coluna_identificador = "Organização" if "Organização" in cabecalho else "NOME"
+        # ✅ CORRIGIDO: Detecta a coluna de identificador com todas as variações
+        coluna_identificador = encontrar_coluna_identificador(cabecalho)
+        
+        if not coluna_identificador:
+            print(f"Aviso: Nenhuma coluna de identificador (NOME/ORGANIZAÇÃO) encontrada na aba '{aba}'.")
+            coluna_identificador = "NOME"  # Fallback padrão
+        
+        print(f"✅ Coluna de identificador detectada: '{coluna_identificador}'")
+        
         colunas_desejadas = [coluna_identificador, "CATEGORIA", "LINK", "CIDADE", "UF", "CONTEÚDO BALÃO"]
         # Encontra os índices das colunas desejadas que realmente existem no cabeçalho
         indices_colunas_desejadas = []
@@ -172,10 +199,10 @@ def processa_aba_gera_html(aba,
         data = pd.DataFrame(dados_para_html)
         
         # --- NOVO TRATAMENTO HÍBRIDO (CORRIGE O ERRO DE DATAFRAME VAZIO) ---
-        # Procura qual variação da coluna existe sem alterar o nome das outras colunas da planilha
+        # ✅ Procura qual variação da coluna existe sem alterar o nome das outras colunas da planilha
         coluna_identificada = None
         for col in data.columns:
-            if str(col).strip().upper() in ["NOME", "ORGANIZAÇÃO", "ORGANIZACAO", "ORGANIZAÇAO"]:
+            if str(col).strip().upper() in ["NOME", "ORGANIZAÇÃO", "ORGANIZACAO", "NOME OU ORGANIZAÇÃO", "NOME OU ORGANIZACAO"]:
                 coluna_identificada = col
                 break
         
@@ -278,8 +305,8 @@ def processa_aba_gera_html(aba,
 """
         html += """
 </tbody>
-<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"[...]
+<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></s[...]
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     function populateSelects() {
