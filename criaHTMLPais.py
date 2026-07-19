@@ -4,6 +4,7 @@ import pyperclip
 from datetime import datetime
 import gspread
 import gspread.exceptions # Importa exceções específicas do gspread
+import unicodedata
 
 # Assumindo que 'client' vem de 'conexao_api' e é um objeto gspread.Client autenticado
 # Certifique-se de que conexao_api.py configura um cliente gspread.Client para Sheets API
@@ -16,6 +17,31 @@ def numero_para_coluna(n):
         n, r = divmod(n - 1, 26)
         resultado = chr(65 + r) + resultado
     return resultado
+
+
+def _normalizar(texto):
+    if texto is None:
+        return ''
+    texto = str(texto).strip().upper()
+    texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+    return texto
+
+
+def encontrar_coluna_identificador(cabecalho):
+    """
+    Procura a coluna que identifica a organização (NOME, ORGANIZAÇÃO,
+    NOME OU ORGANIZAÇÃO, etc.), ignorando maiúsculas/minúsculas e acentos.
+    Retorna o nome EXATO da coluna como está no cabeçalho, ou None.
+    """
+    variacoes_aceitas = {
+        "NOME OU ORGANIZACAO",
+        "ORGANIZACAO",
+        "NOME",
+    }
+    for col in cabecalho:
+        if _normalizar(col) in variacoes_aceitas:
+            return col
+    return None
 
 # Função principal para processar a aba da planilha e gerar o HTML
 def gerar_html_pais(aba,
@@ -63,8 +89,12 @@ def gerar_html_pais(aba,
         # Encontra o índice da coluna 'STATUS'
         status_index = cabecalho.index("STATUS")
         
-        # Define as colunas desejadas para o registro no histórico
-        coluna_identificador = "Organização" if "Organização" in cabecalho else "NOME"
+        # Detecta a coluna identificadora (NOME / ORGANIZAÇÃO / variações)
+        coluna_identificador = encontrar_coluna_identificador(cabecalho)
+        if not coluna_identificador:
+            print(f"Aviso: Nenhuma coluna de identificador (NOME/ORGANIZAÇÃO) encontrada na aba '{aba}'. Usando 'NOME' como fallback.")
+            coluna_identificador = "NOME"
+
         colunas_desejadas = [coluna_identificador, "CATEGORIA", "LINK", "UF", "PAÍS", "CONTEÚDO BALÃO"]
         # Encontra os índices das colunas desejadas que realmente existem no cabeçalho
         indices_colunas_desejadas = []
@@ -167,6 +197,13 @@ def gerar_html_pais(aba,
         dados_para_html = aba_origem.get_all_records()
         data = pd.DataFrame(dados_para_html)
 
+        # Após criar o DataFrame, padroniza a coluna identificadora para 'NOME'
+        coluna_identificada_df = encontrar_coluna_identificador(list(data.columns))
+        if coluna_identificada_df and coluna_identificada_df != 'NOME':
+            data = data.rename(columns={coluna_identificada_df: 'NOME'})
+        elif 'NOME' not in data.columns:
+            data['NOME'] = ''
+
     except Exception as e:
         print(f"Erro ao processar aba '{aba}': {e}")
         return None
@@ -194,10 +231,7 @@ def gerar_html_pais(aba,
         return ' '.join(nome_formatado)
 
     # Aplica a formatação de nome à coluna 'NOME' do DataFrame
-    col_nome_atual = 'Organização' if 'Organização' in data.columns else 'NOME'
-    data[col_nome_atual] = data[col_nome_atual].apply(formatar_nome)
-    data = data.sort_values(by=col_nome_atual, key=lambda col: col.str.lower())
-    # Ordena o DataFrame pela coluna 'NOME' (ignorando maiúsculas/minúsculas)
+    data['NOME'] = data['NOME'].apply(formatar_nome)
     data = data.sort_values(by='NOME', key=lambda col: col.str.lower())
 
     # Obtém a lista de colunas do DataFrame
@@ -209,9 +243,9 @@ def gerar_html_pais(aba,
 
     # Define o nome da quinta coluna e os IDs/rótulos dos seletores HTML com base nela
     quinta_coluna_nome = colunas[4]
-    seletor_id = "cidadeSelect" if quinta_coluna_nome.upper() == "CIDADE" else "cidadeSelect"
+    seletor_id = "cidadeSelect" if quinta_coluna_nome.upper() == "CIDADE" else "paisSelect"
     seletor_label = "Todas Cidades" if quinta_coluna_nome.upper() == "CIDADE" else "Todos os Países"
-    data_attr = "cidade" if quinta_coluna_nome.upper() == "CIDADE" else "cidade"
+    data_attr = "cidade" if quinta_coluna_nome.upper() == "CIDADE" else "pais"
 
     # Função interna para gerar a tabela HTML com os dados da planilha
     def generate_html_table(data):
@@ -233,7 +267,7 @@ def gerar_html_pais(aba,
             link = str(link).strip() if pd.notnull(link) else '#'
             if not link.startswith(('http://', 'https://')):
                 link = 'http://' + link
-            nome = str(row.get('Organização', row.get('NOME', '')) or '').strip()
+            nome = str(row.get('NOME', '') or '').strip()
             uf = str(row.get('UF', '') or '').strip()
             valor_quinta_coluna = str(row.get(quinta_coluna_nome, '') or '').strip()
             categoria = str(row.get('CATEGORIA', '') or '').strip()
@@ -253,8 +287,8 @@ def gerar_html_pais(aba,
 """
         html += """
 </tbody>
-<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"[...]>
+<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></s[...]
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     function populateSelects() {
