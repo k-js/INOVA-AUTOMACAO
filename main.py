@@ -117,7 +117,11 @@ abas_links = {
     "FINANCIAMENTO A INOVAÇÃO": "https://inova.ufpr.br/financiamento-inovacao/",
     "HUBS E ECOSSISTEMAS": "https://inova.ufpr.br/hubs-e-ecossistemas/",
     "INOVAÇÃO NAS UNIVERSIDADES": "https://inova.ufpr.br/inovacao-nas-universidades/",
-    "INSTITUTOS E CENTROS DE PESQUISA": "https://inova.ufpr.br/institutos-de-pesquisa/",
+    # NOME DA ABA ATUALIZADO: antes era "INSTITUTOS E CENTROS DE PESQUISA",
+    # agora a aba na planilha se chama "INSTITUTOS DE PESQUISA E CENTROS DE T&L".
+    # Se essa chave não bater EXATAMENTE com o nome da aba na planilha Google e com o
+    # valor da coluna ABA em links_startups.xlsx, a atualização falha com "Link não mapeado".
+    "INSTITUTOS DE PESQUISA E CENTROS DE T&L": "https://inova.ufpr.br/institutos-de-pesquisa/",
     "PARQUES CIENTÍFICOS": "https://inova.ufpr.br/parques-tecnologicos/",
     "PERÍODICOS CIENTÍFICOS": "https://inova.ufpr.br/periodicos-cientificos/",
     "POLÍTICAS DE INOVAÇÃO": "https://inova.ufpr.br/politicas-de-inovacao/",
@@ -131,10 +135,23 @@ abas_pais = [
     "ASSOCIAÇÕES EMPRESARIAIS",
     "FINANCIAMENTO A INOVAÇÃO",
     "HUBS E ECOSSISTEMAS",
-    "INSTITUTOS E GRUPOS DE PESQUISA",
+    # CORRIGIDO: nome não batia nem com o antigo nome da aba ("INSTITUTOS E CENTROS DE
+    # PESQUISA", usado em abas_links) nem com o novo ("INSTITUTOS DE PESQUISA E CENTROS
+    # DE T&L"). Por isso essa aba nunca era roteada para gerar_html_pais.
+    "INSTITUTOS DE PESQUISA E CENTROS DE T&L",
     "POLÍTICAS DE INOVAÇÃO",
     "PROPRIEDADE INTELECTUAL",
     "TESTE"
+]
+
+# Abas que não têm relação com Estado/Cidade/País (ex.: periódicos científicos,
+# propriedade intelectual, políticas de inovação são temas nacionais/institucionais,
+# não organizações localizáveis por UF/país). Para essas abas o filtro de
+# Estado/Cidade/País é removido inteiramente do HTML gerado.
+ABAS_SEM_GEOGRAFIA = [
+    "PERIÓDICOS CIENTÍFICOS",
+    "PROPRIEDADE INTELECTUAL",
+    "POLÍTICAS DE INOVAÇÃO",
 ]
 
 # =========================================
@@ -159,14 +176,16 @@ for i in range(0, len(abas_selecionadas), tamanho_lote):
                 continue
 
             # Gera HTML baseado no tipo de aba
+            incluir_geografia = aba.upper() not in [a.upper() for a in ABAS_SEM_GEOGRAFIA]
+
             if aba.upper() == "PITCHS DE STARTUPS":
                 html = gerar_html_pitchs_via_api()
             elif aba.upper() == "VÍDEOS E PODCASTS":
                 html = gerar_html_3COL(aba)
             elif aba.upper() in [a.upper() for a in abas_pais]:
-                html = gerar_html_pais(aba)
+                html = gerar_html_pais(aba, incluir_geografia=incluir_geografia)
             else:
-                html = processa_aba_gera_html(aba)
+                html = processa_aba_gera_html(aba, incluir_geografia=incluir_geografia)
 
             if html is None:
                 print(f"❌ HTML retornado como None para aba: {aba}")

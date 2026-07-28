@@ -52,9 +52,18 @@ def encontrar_coluna_identificador(cabecalho):
 
     return None
 
+# Mapeia os nomes normalizados (sem acento, maiúsculo) das colunas para o nome EXATO
+# como aparece na planilha. Usado para detectar UF/CIDADE/PAÍS por nome, e não por posição.
+def mapear_colunas_normalizadas(colunas):
+    return {_normalizar(c): c for c in colunas}
+
+
 # Função principal para processar a aba da planilha e gerar o HTML
+# incluir_geografia=False remove completamente o filtro de Estado (UF) e de Cidade/País.
+# Use isso para abas que não fazem sentido geograficamente (ex.: Periódicos Científicos).
 def processa_aba_gera_html(aba,
-                           output_directory=r"C:\Users\marco\OneDrive\Área de Trabalho\Economia\INOVA\tabelas-atualizadas"):
+                           output_directory=r"C:\Users\marco\OneDrive\Área de Trabalho\Economia\INOVA\tabelas-atualizadas",
+                           incluir_geografia=True):
     try:
         # Abre a planilha pelo nome
         planilha = client.open("PORTAL DA INOVAÇÃO E STARTUPS")
@@ -253,34 +262,42 @@ def processa_aba_gera_html(aba,
 
     # Obtém a lista de colunas do DataFrame
     colunas = list(data.columns)
-    # Verifica se há pelo menos 5 colunas
-    if len(colunas) < 5:
-        print("A planilha não tem pelo menos cinco colunas.")
-        return None
 
-    # CORRIGIDO: Detecta se a coluna 'CIDADE' existe na tabela, independente da ordem dela
-    if 'CIDADE' in data.columns:
-        quinta_coluna_nome = 'CIDADE'
-        seletor_id = "cidadeSelect"
-        seletor_label = "Todas Cidades"
-        data_attr = "cidade"
-    else:
-        # Se não houver 'CIDADE', assume que a aba trabalha com 'PAIS'
-        quinta_coluna_nome = 'PAIS' if 'PAIS' in data.columns else (colunas[4] if len(colunas) > 4 else '')
-        seletor_id = "paisSelect"
-        seletor_label = "Todos os Países"
-        data_attr = "pais"
+    # CORRIGIDO: detecção de UF/CIDADE/PAÍS por NOME (ignorando acento/caixa), nunca por
+    # posição. Antes o código usava colunas[4] (a "5ª coluna"), o que quebrava sempre que
+    # a planilha tinha colunas em outra ordem, e a checagem de 'PAIS' nunca batia com o
+    # cabeçalho real 'PAÍS' (por causa do acento) -- por isso o filtro saía errado ou a
+    # geração falhava exigindo 5 colunas mesmo quando a aba não tinha UF/CIDADE/PAÍS.
+    mapa_colunas = mapear_colunas_normalizadas(colunas)
+    coluna_uf = mapa_colunas.get('UF')
+
+    coluna_geo = None
+    seletor_id = seletor_label = data_attr = None
+    if incluir_geografia:
+        if 'CIDADE' in mapa_colunas:
+            coluna_geo = mapa_colunas['CIDADE']
+            seletor_id, seletor_label, data_attr = "cidadeSelect", "Todas Cidades", "cidade"
+        elif 'PAIS' in mapa_colunas:  # _normalizar remove acento: 'PAÍS' -> 'PAIS'
+            coluna_geo = mapa_colunas['PAIS']
+            seletor_id, seletor_label, data_attr = "paisSelect", "Todos os Países", "pais"
+
+    mostrar_uf = incluir_geografia and coluna_uf is not None
+    mostrar_geo = incluir_geografia and coluna_geo is not None
 
     # Função interna para gerar a tabela HTML com os dados da planilha
     def generate_html_table(data):
+        cabecalhos_extra = ""
+        if mostrar_uf:
+            cabecalhos_extra += '<th scope="col"><select id="ufSelect" onchange="filterTable()"><option value="">Todos Estados</option></select></th>\n'
+        if mostrar_geo:
+            cabecalhos_extra += f'<th scope="col"><select id="{seletor_id}" onchange="filterTable()"><option value="">{seletor_label}</option></select></th>\n'
+
         html = f"""
 <table class="table" id="organization_table">
 <thead>
 <tr>
 <th scope="col"><p>Organização</p></th>
-<th scope="col"><select id="ufSelect" onchange="filterTable()"><option value="">Todos Estados</option></select></th>
-<th scope="col"><select id="{seletor_id}" onchange="filterTable()"><option value="">{seletor_label}</option></select></th>
-<th scope="col"><select id="categoriaSelect" onchange="filterTable()"><option value="">Todas Categorias</option></select></th>
+{cabecalhos_extra}<th scope="col"><select id="categoriaSelect" onchange="filterTable()"><option value="">Todas Categorias</option></select></th>
 </tr>
 </thead>
 <tbody>
@@ -291,95 +308,92 @@ def processa_aba_gera_html(aba,
                 link = 'http://' + link
 
             nome = safe_str(row.get('NOME'), default='')
-            uf = safe_str(row.get('UF'), default='')
-            valor_quinta_coluna = safe_str(row.get(quinta_coluna_nome), default='')
+            uf = safe_str(row.get(coluna_uf), default='') if mostrar_uf else ''
+            valor_geo = safe_str(row.get(coluna_geo), default='') if mostrar_geo else ''
             categoria = safe_str(row.get('CATEGORIA'), default='')
             conteudo_balao = safe_str(row.get('CONTEÚDO BALÃO'), default='')
 
+            attrs_extra = ""
+            tds_extra = ""
+            if mostrar_uf:
+                attrs_extra += f' data-uf="{uf}"'
+                tds_extra += f'<td>{uf}</td>\n'
+            if mostrar_geo:
+                attrs_extra += f' data-{data_attr}="{valor_geo}"'
+                tds_extra += f'<td>{valor_geo}</td>\n'
+
             html += f"""
-<tr class="organizationRow" data-uf="{uf}" data-{data_attr}="{valor_quinta_coluna}" data-categoria="{categoria}">
+<tr class="organizationRow"{attrs_extra} data-categoria="{categoria}">
 <td scope="row">
 <span data-bs-placement="bottom" data-bs-toggle="tooltip" title="{conteudo_balao}">
 <a href="{link}" rel="noopener noreferrer" target="_blank">{nome}</a>
 </span>
 </td>
-<td>{uf}</td>
-<td>{valor_quinta_coluna}</td>
-<td>{categoria}</td>
+{tds_extra}<td>{categoria}</td>
 </tr>
 """
-        html += """
+        # JS montado dinamicamente: só inclui os filtros que realmente existem na página.
+        # Antes, quando #ufSelect/#cidadeSelect não existiam (planilha sem essas colunas),
+        # $(this).data(...) retornava undefined e .toLowerCase() quebrava TODO o
+        # filterTable() -- inclusive o filtro de categoria, que sempre existe.
+        js_uf_decl = 'var ufFilter = $("#ufSelect").val().toLowerCase();' if mostrar_uf else 'var ufFilter = "";'
+        js_geo_decl = f'var geoFilter = $("#{seletor_id}").val().toLowerCase();' if mostrar_geo else 'var geoFilter = "";'
+        js_uf_check = '($(this).data("uf") || "").toString().toLowerCase()' if mostrar_uf else '""'
+        js_geo_check = f'($(this).data("{data_attr}") || "").toString().toLowerCase()' if mostrar_geo else '""'
+        js_populate_uf = ("\n        $(\"#organization_table tbody tr\").each(function() { ufSet.add($(this).data(\"uf\")); });"
+                           "\n        Array.from(ufSet).sort().forEach(function(uf) { if (uf) { $(\"#ufSelect\").append(new Option(uf, uf)); } });") if mostrar_uf else ''
+        js_populate_geo = (f"\n        $(\"#organization_table tbody tr\").each(function() {{ geoSet.add($(this).data(\"{data_attr}\")); }});"
+                            f"\n        Array.from(geoSet).sort().forEach(function(v) {{ if (v) {{ $(\"#{seletor_id}\").append(new Option(v, v)); }} }});") if mostrar_geo else ''
+
+        html += f"""
 </tbody>
-<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"[...]
-<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></s[...]
+<script crossorigin="anonymous" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+<script crossorigin="anonymous" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    function populateSelects() {
+    function populateSelects() {{
         var ufSet = new Set();
-        var cidadeSet = new Set();
+        var geoSet = new Set();
         var categoriaSet = new Set();
-        $("#organization_table tbody tr").each(function() {
-            ufSet.add($(this).data("uf"));
-            cidadeSet.add($(this).data("cidade"));
+        $("#organization_table tbody tr").each(function() {{
             categoriaSet.add($(this).data("categoria"));
-        });
-        
-        // Ordena as opções de cada conjunto
-        var ufArray = Array.from(ufSet).sort();
-        var cidadeArray = Array.from(cidadeSet).sort();
-        var categoriaArray = Array.from(categoriaSet).sort();
+        }});
+        {js_populate_uf}
+        {js_populate_geo}
+        Array.from(categoriaSet).sort().forEach(function(categoria) {{
+            if (categoria) {{ $("#categoriaSelect").append(new Option(categoria, categoria)); }}
+        }});
+    }}
 
-        // Adiciona as opções de estado ordenadas, ignorando vazios
-        ufArray.forEach(function(uf) {
-            if (uf) {
-                $("#ufSelect").append(new Option(uf, uf));
-            }
-        });
-        
-        // Adiciona as opções de cidade ordenadas, ignorando vazios
-        cidadeArray.forEach(function(cidade) {
-            if (cidade) {
-                $("#cidadeSelect").append(new Option(cidade, cidade));
-            }
-        });
-        
-        // Adiciona as opções de categoria ordenadas, ignorando vazios
-        categoriaArray.forEach(function(categoria) {
-            if (categoria) {
-                $("#categoriaSelect").append(new Option(categoria, categoria));
-            }
-        });
-    }
+    function filterTable() {{
+        {js_uf_decl}
+        {js_geo_decl}
+        var categoriaFilter = ($("#categoriaSelect").val() || "").toLowerCase();
 
-    function filterTable() {
-        var ufFilter = $("#ufSelect").val().toLowerCase();
-        var cidadeFilter = $("#cidadeSelect").val().toLowerCase();
-        var categoriaFilter = $("#categoriaSelect").val().toLowerCase();
-        
-        $("#organization_table tbody tr").filter(function() {
-            var ufText = $(this).data("uf").toLowerCase();
-            var cidadeText = $(this).data("cidade").toLowerCase();
-            var categoriaText = $(this).data("categoria").toLowerCase();
-            
+        $("#organization_table tbody tr").filter(function() {{
+            var ufText = {js_uf_check};
+            var geoText = {js_geo_check};
+            var categoriaText = ($(this).data("categoria") || "").toString().toLowerCase();
+
             if ((ufFilter === "" || ufText === ufFilter) &&
-                (cidadeFilter === "" || cidadeText === cidadeFilter) &&
-                (categoriaFilter === "" || categoriaText === categoriaFilter)) {
+                (geoFilter === "" || geoText === geoFilter) &&
+                (categoriaFilter === "" || categoriaText === categoriaFilter)) {{
                 $(this).show();
-            } else {
+            }} else {{
                 $(this).hide();
-            }
-        });
-    }
+            }}
+        }});
+    }}
 
-    $(document).ready(function() {
+    $(document).ready(function() {{
         populateSelects();
-        $("#search").on("keyup", function() {
+        $("#search").on("keyup", function() {{
             var value = $(this).val().toLowerCase();
-            $("#organization_table tr.organizationRow").filter(function() {
+            $("#organization_table tr.organizationRow").filter(function() {{
                 $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-            });
-        });
-    });
+            }});
+        }});
+    }});
 </script>
 </table>
 """

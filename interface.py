@@ -17,9 +17,21 @@ abas_pais = [
     "ASSOCIAÇÕES EMPRESARIAIS",
     "FINANCIAMENTO A INOVAÇÃO",
     "HUBS E ECOSSISTEMAS",
-    "INSTITUTOS E GRUPOS DE PESQUISA",
+    # CORRIGIDO: o nome antigo ("INSTITUTOS E GRUPOS DE PESQUISA") não batia com o nome
+    # real da aba na planilha nem com a chave usada em links_startups.xlsx. A aba foi
+    # renomeada para "INSTITUTOS DE PESQUISA E CENTROS DE T&L" — use esse nome também
+    # na coluna ABA da planilha links_startups.xlsx.
+    "INSTITUTOS DE PESQUISA E CENTROS DE T&L",
     "POLÍTICAS DE INOVAÇÃO",
     "PROPRIEDADE INTELECTUAL", "TESTE"
+]
+
+# Abas sem relação geográfica (Estado/Cidade/País): o filtro correspondente é
+# removido inteiramente do HTML gerado para essas abas.
+ABAS_SEM_GEOGRAFIA = [
+    "PERIÓDICOS CIENTÍFICOS",
+    "PROPRIEDADE INTELECTUAL",
+    "POLÍTICAS DE INOVAÇÃO",
 ]
 
 # Cria a janela principal
@@ -60,18 +72,20 @@ def on_submit():
         try:
             print(f"\n➡️ Processando aba: {aba}")
 
+            incluir_geografia = aba.strip().upper() not in [a.upper() for a in ABAS_SEM_GEOGRAFIA]
+
             if aba.strip().upper() == "PITCHS DE STARTUPS":
                 print("Usando função: gerar_html_pitchs_via_api")
                 html = gerar_html_pitchs_via_api()
             elif aba.strip().upper() == "VÍDEOS E PODCASTS":
                 print("Usando função: gerar_html_simples (3 colunas)")
                 html = gerar_html_3COL(aba)
-            elif aba.upper() in abas_pais:
+            elif aba.upper() in [a.upper() for a in abas_pais]:
                 print("Usando função: gerar_html_pais")
-                html = gerar_html_pais(aba)
+                html = gerar_html_pais(aba, incluir_geografia=incluir_geografia)
             else:
                 print("Usando função: processa_aba_gera_html")
-                html = processa_aba_gera_html(aba)
+                html = processa_aba_gera_html(aba, incluir_geografia=incluir_geografia)
 
             if html is None:
                 print(f"❌ HTML retornado como None para aba: {aba}")
