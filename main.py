@@ -121,7 +121,7 @@ abas_links = {
     # agora a aba na planilha se chama "INSTITUTOS DE PESQUISA E CENTROS DE T&L".
     # Se essa chave não bater EXATAMENTE com o nome da aba na planilha Google e com o
     # valor da coluna ABA em links_startups.xlsx, a atualização falha com "Link não mapeado".
-    "INSTITUTOS DE PESQUISA E CENTROS DE T&L": "https://inova.ufpr.br/institutos-de-pesquisa/",
+    "INSTITUTOS DE PESQUISA E CENTROS DE T&I": "https://inova.ufpr.br/institutos-de-pesquisa/",
     "PARQUES CIENTÍFICOS": "https://inova.ufpr.br/parques-tecnologicos/",
     "PERÍODICOS CIENTÍFICOS": "https://inova.ufpr.br/periodicos-cientificos/",
     "POLÍTICAS DE INOVAÇÃO": "https://inova.ufpr.br/politicas-de-inovacao/",
@@ -138,7 +138,7 @@ abas_pais = [
     # CORRIGIDO: nome não batia nem com o antigo nome da aba ("INSTITUTOS E CENTROS DE
     # PESQUISA", usado em abas_links) nem com o novo ("INSTITUTOS DE PESQUISA E CENTROS
     # DE T&L"). Por isso essa aba nunca era roteada para gerar_html_pais.
-    "INSTITUTOS DE PESQUISA E CENTROS DE T&L",
+    "INSTITUTOS DE PESQUISA E CENTROS DE T&I",
     "POLÍTICAS DE INOVAÇÃO",
     "PROPRIEDADE INTELECTUAL",
     "TESTE"
