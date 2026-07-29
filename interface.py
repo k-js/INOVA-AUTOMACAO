@@ -21,7 +21,7 @@ abas_pais = [
     # real da aba na planilha nem com a chave usada em links_startups.xlsx. A aba foi
     # renomeada para "INSTITUTOS DE PESQUISA E CENTROS DE T&L" — use esse nome também
     # na coluna ABA da planilha links_startups.xlsx.
-    "INSTITUTOS DE PESQUISA E CENTROS DE T&L",
+    "INSTITUTOS DE PESQUISA E CENTROS DE T&I",
     "POLÍTICAS DE INOVAÇÃO",
     "PROPRIEDADE INTELECTUAL", "TESTE"
 ]
