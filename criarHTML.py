@@ -61,8 +61,16 @@ def mapear_colunas_normalizadas(colunas):
 # Função principal para processar a aba da planilha e gerar o HTML
 # incluir_geografia=False remove completamente o filtro de Estado (UF) e de Cidade/País.
 # Use isso para abas que não fazem sentido geograficamente (ex.: Periódicos Científicos).
+# Pasta onde o HTML gerado é salvo como cópia local, para conferência.
+# Fica dentro do projeto e é ignorada pelo git (ver .gitignore).
+# Antes apontava para o OneDrive de uma máquina específica, o que não existia
+# nem no runner da GitHub Action nem em outros computadores.
+DIRETORIO_SAIDA_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "tabelas-atualizadas")
+
+
 def processa_aba_gera_html(aba,
-                           output_directory=r"C:\Users\marco\OneDrive\Área de Trabalho\Economia\INOVA\tabelas-atualizadas",
+                           output_directory=DIRETORIO_SAIDA_PADRAO,
                            incluir_geografia=True):
     try:
         # Abre a planilha pelo nome

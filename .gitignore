@@ -1,0 +1,30 @@
+# Credenciais — NUNCA versionar
+credenciais/
+*.env
+.env
+
+# Service account do Google
+*-service-account.json
+google-credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# HTML gerado localmente pelos scripts
+tabelas-atualizadas/
+*.html.bak
+
+# Material de apoio local (cópia da planilha, backups do Apps Script).
+# O Apps Script versionado fica em apps-script/.
+material-fora-do-repo/
+
+# Cópias locais da planilha
+*.xlsx
+*.xls
+
+# Sistema
+.DS_Store
+Thumbs.db

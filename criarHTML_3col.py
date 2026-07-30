@@ -35,9 +35,28 @@ def encontrar_coluna_identificador(cabecalho):
             return col  # retorna o nome EXATO como está no cabeçalho da planilha
     return None
 
+
+def _encontrar_coluna(cabecalho, nome_procurado):
+    """
+    Acha uma coluna pelo nome ignorando acento e maiúsculas, e devolve o nome
+    EXATO como está no cabeçalho. Use isto em vez de posição fixa: assim a
+    planilha pode ter as colunas em qualquer ordem.
+    """
+    alvo = _normalizar(nome_procurado)
+    for col in cabecalho:
+        if _normalizar(col) == alvo:
+            return col
+    return None
+
+# Pasta onde o HTML gerado é salvo como cópia local, para conferência.
+# Fica dentro do projeto e é ignorada pelo git (ver .gitignore).
+DIRETORIO_SAIDA_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "tabelas-atualizadas")
+
+
 def gerar_html_3COL(
     aba,
-    output_directory=r"C:\Users\marco\OneDrive\Área de Trabalho\Economia\INOVA\tabelas-atualizadas"
+    output_directory=DIRETORIO_SAIDA_PADRAO
 ):
     try:
         planilha = client.open("PORTAL DA INOVAÇÃO E STARTUPS")
@@ -126,11 +145,23 @@ def gerar_html_3COL(
     data['NOME'] = data['NOME'].apply(formatar_nome)
     data = data.sort_values(by='NOME', key=lambda col: col.str.lower())
 
-    if len(data.columns) < 4:
-        print("Planilha com colunas insuficientes.")
+    # CORRIGIDO: antes usava data.columns[3] — a "4ª coluna", por POSIÇÃO.
+    # Funcionava só porque PAÍS estava nessa posição; bastava alguém inserir
+    # uma coluna antes para o filtro passar a mostrar o conteúdo errado, sem
+    # nenhum erro visível. Agora a coluna é procurada pelo NOME, tolerando
+    # acento e maiúsculas ('PAÍS', 'PAIS', 'País').
+    coluna_pais = None
+    for candidato in ("PAÍS", "PAIS"):
+        coluna_pais = _encontrar_coluna(list(data.columns), candidato)
+        if coluna_pais:
+            break
+
+    if not coluna_pais:
+        print(f"Coluna 'PAÍS' não encontrada na aba '{aba}'. "
+              f"Colunas disponíveis: {list(data.columns)}")
         return None
 
-    quarta_coluna = data.columns[3]
+    quarta_coluna = coluna_pais
     seletor_id = "paisSelect"
     seletor_label = "Todos os Países"
     data_attr = "pais"

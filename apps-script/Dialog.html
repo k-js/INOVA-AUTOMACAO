@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+  </head>
+  <body>
+    <p>Escolha a ação para a organização: <b><?= nomeOrg ?></b></p>
+    <button onclick="alterar()">Alterar link</button>
+    <button onclick="remover()">Remover linha</button>
+    <button onclick="google.script.host.close()">Cancelar</button>
+
+    <script>
+      var linha = <?= linha ?>;
+      var linkAtual = "<?= linkAtual ?>";
+      var nomeOrg = "<?= nomeOrg ?>";
+      var nomeAbaOrigem = "<?= nomeAbaOrigem ?>";
+
+      function alterar() {
+        var novoLink = prompt("Digite o novo link para " + nomeOrg + ":");
+        if (novoLink) {
+          enviarAcao('alterar', novoLink);
+        }
+      }
+
+      function remover() {
+        if (confirm("Deseja realmente remover esta linha?")) {
+          enviarAcao('remover', '');
+        }
+      }
+
+      function enviarAcao(acao, novoLink) {
+        google.script.run.withSuccessHandler(function() {
+          google.script.host.close();
+        }).processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink);
+      }
+    </script>
+  </body>
+</html>

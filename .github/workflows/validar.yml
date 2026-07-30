@@ -1,0 +1,38 @@
+name: Validar planilha (somente leitura)
+
+# Este workflow NÃO publica nada no site e NÃO altera a planilha.
+# Ele apenas lê a planilha e compara com o config.py, para avisar quando
+# uma aba foi renomeada, criada, ou teve colunas alteradas.
+#
+# Rode manualmente em: aba "Actions" -> "Validar planilha" -> "Run workflow"
+
+on:
+  workflow_dispatch:
+  # Roda de madrugada, antes da publicação das 10:00 UTC, para que uma
+  # divergência apareça aqui antes de virar erro na publicação.
+  schedule:
+    - cron: '0 8 * * *'
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validar configuração contra a planilha
+        env:
+          GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
+          GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
+        run: python validar.py

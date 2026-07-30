@@ -6,7 +6,6 @@ from atualizador_WP import atualizar_pagina_wp
 from pitchs import gerar_html_pitchs_via_api
 from criaHTMLPais import gerar_html_pais
 from criarHTML_3col import gerar_html_3COL
-from criaHTMLPais import gerar_html_pais
 
 # Lê o arquivo com os links
 links_df = pd.read_excel("links_startups.xlsx")
@@ -19,7 +18,7 @@ abas_pais = [
     "HUBS E ECOSSISTEMAS",
     # CORRIGIDO: o nome antigo ("INSTITUTOS E GRUPOS DE PESQUISA") não batia com o nome
     # real da aba na planilha nem com a chave usada em links_startups.xlsx. A aba foi
-    # renomeada para "INSTITUTOS DE PESQUISA E CENTROS DE T&L" — use esse nome também
+    # renomeada para "INSTITUTOS DE PESQUISA E CENTROS DE T&I" — use esse nome também
     # na coluna ABA da planilha links_startups.xlsx.
     "INSTITUTOS DE PESQUISA E CENTROS DE T&I",
     "POLÍTICAS DE INOVAÇÃO",

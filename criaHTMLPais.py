@@ -59,8 +59,14 @@ def mapear_colunas_normalizadas(colunas):
 # incluir_geografia=False remove completamente o filtro de Estado (UF) e de Cidade/País.
 # Use isso para abas que não fazem sentido geograficamente (ex.: Propriedade Intelectual,
 # Políticas de Inovação).
+# Pasta onde o HTML gerado é salvo como cópia local, para conferência.
+# Fica dentro do projeto e é ignorada pelo git (ver .gitignore).
+DIRETORIO_SAIDA_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "tabelas-atualizadas")
+
+
 def gerar_html_pais(aba,
-                           output_directory=r"C:\Users\marco\OneDrive\Área de Trabalho\Economia\INOVA\tabelas-atualizadas",
+                           output_directory=DIRETORIO_SAIDA_PADRAO,
                            incluir_geografia=True):
     
     
