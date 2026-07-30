@@ -47,6 +47,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 import config
+import criar_pagina_wp
 
 CAMINHO_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "src", "config.py")
@@ -179,8 +180,28 @@ def reescrever_config(mapa):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
-                        help="mostra o que faria, sem alterar o config.py")
+                        help="mostra o que faria, sem alterar nada")
+    parser.add_argument("--criar-paginas", action="store_true",
+                        help="cria no WordPress, como RASCUNHO, a página das "
+                             "abas que ainda não têm uma")
+    parser.add_argument("--menu-id", type=int, default=None,
+                        help="id do menu onde inserir as páginas criadas "
+                             "(use --listar-menus para descobrir)")
+    parser.add_argument("--listar-menus", action="store_true",
+                        help="lista os menus de navegação do site e sai")
     args = parser.parse_args()
+
+    if args.listar_menus:
+        menus = criar_pagina_wp.listar_menus()
+        if not menus:
+            print("Nenhum menu acessível. Verifique WP_USER e WP_APP_PASSWORD,")
+            print("e se o usuário tem permissão para gerenciar menus.")
+            return
+        print("Menus de navegação do site:\n")
+        for m in menus:
+            print(f"   id {m.get('id'):>4}   {m.get('name')}")
+        print("\nUse: python sincronizar_config.py --criar-paginas --menu-id <id>")
+        return
 
     print("=" * 64)
     print("🔄 SINCRONIZAÇÃO DO CONFIG")
@@ -224,13 +245,40 @@ def main():
     else:
         print("Nenhuma aba nova com página correspondente.")
 
-    if sem_pagina:
+    if sem_pagina and args.criar_paginas:
+        print(f"\n🆕 Criando página para {len(sem_pagina)} aba(s):")
+        for aba in sem_pagina[:]:
+            try:
+                url, situacao = criar_pagina_wp.criar_pagina(aba, dry_run=args.dry_run)
+                print(f"   + {aba}  →  {url}")
+                print(f"     {situacao}")
+
+                if args.menu_id:
+                    msg = criar_pagina_wp.adicionar_ao_menu(
+                        aba, args.menu_id, dry_run=args.dry_run
+                    )
+                    print(f"     menu: {msg}")
+
+                if url and not args.dry_run:
+                    mapa[aba] = url
+                    novas.append((aba, url))
+                    sem_pagina.remove(aba)
+
+            except Exception as e:
+                print(f"   ✗ {aba}: {e}")
+
+        if not args.dry_run:
+            print("\n   As páginas nasceram como RASCUNHO: já recebem conteúdo,")
+            print("   mas só aparecem no site quando você clicar em Publicar.")
+
+    elif sem_pagina:
         print(f"\n⚠️  {len(sem_pagina)} aba(s) sem página no site:")
         for aba in sem_pagina:
-            sugestao = config.normalizar(aba).lower().replace(" ", "-")
+            sugestao = criar_pagina_wp.gerar_slug(aba)
             print(f"   - {aba}")
-            print(f"     Crie a página (sugestão de slug: /{sugestao}/) com o")
-            print(f"     marcador <!-- COMECA ATUALIZAR DAQUI --> no conteúdo.")
+            print(f"     Crie a página (slug sugerido: /{sugestao}/) com o")
+            print(f"     marcador <!-- COMECA ATUALIZAR DAQUI --> no conteúdo,")
+            print(f"     ou rode com --criar-paginas para criá-la como rascunho.")
 
     if sumiram:
         print(f"\n⚠️  {len(sumiram)} aba(s) no config que não existem na planilha:")
