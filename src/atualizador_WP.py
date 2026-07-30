@@ -5,6 +5,10 @@ import os
 import re
 from requests.auth import HTTPBasicAuth
 
+# Raiz do projeto (este arquivo está em src/).
+RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CAMINHO_ENV = os.path.join(RAIZ_PROJETO, "credenciais", ".env")
+
 def atualizar_pagina_wp(pagina_url, nova_tabela_html):
     slug = urlparse(pagina_url).path.strip('/')
 
@@ -31,9 +35,16 @@ def atualizar_pagina_wp(pagina_url, nova_tabela_html):
 
     page_url = f"https://inova.ufpr.br/wp-json/wp/v2/pages/{page_id}?context=edit"
 
-    load_dotenv(dotenv_path='credenciais/.env')
+    # Caminho absoluto: com caminho relativo, o .env só era encontrado quando o
+    # script rodava a partir da raiz do projeto.
+    load_dotenv(dotenv_path=CAMINHO_ENV)
     WP_USER = os.getenv("WP_USER")
     WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD")
+
+    if not WP_USER or not WP_APP_PASSWORD:
+        print("❌ WP_USER ou WP_APP_PASSWORD não definidos — impossível autenticar.")
+        print("   Na Action vêm dos Secrets; localmente, de credenciais/.env")
+        return False
 
     # Obter conteúdo com contexto de edição
     resp_get = requests.get(

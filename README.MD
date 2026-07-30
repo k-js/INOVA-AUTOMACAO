@@ -42,15 +42,44 @@ Publica o HTML nas páginas corretas do WordPress via REST API.
 
 ## 📂 Estrutura do Projeto
 
-├── main.py # Script principal que orquestra a atualização
+```
+├── main.py              # Publicação: orquestra a atualização (usado pela Action)
+├── validar.py           # Confere se a planilha bate com a configuração (só lê)
+├── interface.py         # Interface gráfica para rodar manualmente
+├── requirements.txt     # Dependências
+│
+├── src/
+│   ├── config.py        # ⭐ Nomes de abas, colunas e URLs — fonte única
+│   ├── conexao_api.py   # Cliente autenticado do Google Sheets
+│   ├── atualizador_WP.py# Publicação via REST API do WordPress
+│   ├── criarHTML.py     # Gerador padrão (UF + Cidade)
+│   ├── criaHTMLPais.py  # Gerador com coluna País
+│   ├── criarHTML_3col.py# Gerador de 3 colunas (Vídeos e Podcasts)
+│   ├── pitchs.py        # Gerador dos pitches em vídeo
+│   └── converter_json.py# Utilitário para gerar o .env da service account
+│
+├── apps-script/         # Código que roda dentro da planilha (Google Apps Script)
+├── docs/
+│   └── MANUTENCAO.md    # ⭐ O que fazer quando aba/coluna muda de nome
+└── .github/workflows/
+    ├── atualizar.yml    # Publicação diária (10:00 UTC)
+    └── validar.yml      # Validação diária (08:00 UTC), sem publicar
+```
 
-├── criarHTML.py # Geração do HTML com base nos dados da planilha
+---
 
-├── atualizador_WP.py # Conexão com a REST API do WordPress e substituição do conteúdo
+## 🔧 Manutenção
 
-├── conexao_api.py # Funções auxiliares para conexão e autenticação
+Quando uma **aba for renomeada, criada, ou uma coluna mudar de nome** na
+planilha, o código precisa saber. Rode a validação:
 
-├── requirements.txt # Dependências do projeto
+**Actions → "Validar planilha (somente leitura)" → "Run workflow"**
+
+Ela lê a planilha, compara com [src/config.py](src/config.py) e aponta o que
+está divergente — inclusive sugerindo o nome provável quando detecta uma
+renomeação. Não publica nada e não altera a planilha.
+
+O passo a passo de cada situação está em [docs/MANUTENCAO.md](docs/MANUTENCAO.md).
 
 ---
 

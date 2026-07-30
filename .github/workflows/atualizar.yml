@@ -3,7 +3,7 @@ name: Atualizar INOVA
 on:
   workflow_dispatch:  # permite rodar manualmente
   schedule:
-    - cron: '0 10 * * *'  # Executa todos os dias às 00:30 UTC
+    - cron: '0 10 * * *'  # Executa todos os dias às 10:00 UTC
 
 jobs:
   atualizar_wp:
@@ -12,26 +12,38 @@ jobs:
     steps:
       # 1️⃣ Fazer checkout do repositório
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 2️⃣ Configurar Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 3️⃣ Instalar dependências (se houver requirements.txt)
+      # 3️⃣ Instalar dependências
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt
 
-      # 4️⃣ Rodar o script Python
+      # 4️⃣ Validar a configuração antes de publicar
+      #
+      # Não bloqueia a publicação (continue-on-error): um aviso sobre uma aba
+      # não mapeada não deve impedir a atualização das outras. Se este passo
+      # ficar amarelo, abra o log — ele diz exatamente o que está divergente.
+      - name: Validar planilha (não bloqueia)
+        continue-on-error: true
+        env:
+          GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
+          GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
+        run: python validar.py
+
+      # 5️⃣ Publicar
       - name: Run script
         env:
           GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
           GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-          WP_USER: ${{ secrets.WP_USER }}      # caso use usuário também
-          WP_URL: ${{ secrets.WP_URL }}        # URL do WordPress
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_URL: ${{ secrets.WP_URL }}
         run: python main.py

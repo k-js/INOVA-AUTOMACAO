@@ -22,6 +22,19 @@ import sys
 import json
 import difflib
 
+# O console do Windows costuma usar uma codificação legada (cp1252) que não
+# consegue imprimir emoji nem acento, e derruba o script com
+# UnicodeEncodeError. Força UTF-8 na saída antes de qualquer print.
+for _fluxo in (sys.stdout, sys.stderr):
+    try:
+        _fluxo.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+# Os módulos do projeto ficam em src/. Isso os torna importáveis
+# independentemente de onde o script é chamado.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -67,9 +80,31 @@ def conectar():
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/spreadsheets",
     ]
-    creds = Credentials.from_service_account_info(json.loads(google_json), scopes=escopos)
-    cliente = gspread.authorize(creds)
-    return cliente.open_by_key(gsheets_key)
+
+    try:
+        creds_dict = json.loads(google_json)
+    except json.JSONDecodeError as e:
+        print(f"❌ GOOGLE_JSON não é um JSON válido: {e}")
+        sys.exit(1)
+
+    try:
+        creds = Credentials.from_service_account_info(creds_dict, scopes=escopos)
+        cliente = gspread.authorize(creds)
+    except Exception as e:
+        print(f"❌ Falha ao autenticar com a service account: {e}")
+        print("   Verifique se o secret GOOGLE_JSON tem o conteúdo correto e completo.")
+        sys.exit(1)
+
+    try:
+        return cliente.open_by_key(gsheets_key)
+    except gspread.exceptions.SpreadsheetNotFound:
+        print(f"❌ Planilha não encontrada com a chave informada em GSHEETS_KEY.")
+        print(f"   Confirme a chave e se a planilha foi compartilhada com:")
+        print(f"   {creds_dict.get('client_email', '(e-mail da service account)')}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Não foi possível abrir a planilha: {e}")
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------

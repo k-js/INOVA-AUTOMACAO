@@ -1,15 +1,34 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import messagebox
+
+# Os módulos do projeto ficam em src/. Isso os torna importáveis
+# independentemente de onde o script é chamado.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+
 import pandas as pd
 from criarHTML import processa_aba_gera_html
 from atualizador_WP import atualizar_pagina_wp
 from pitchs import gerar_html_pitchs_via_api
 from criaHTMLPais import gerar_html_pais
 from criarHTML_3col import gerar_html_3COL
+import config
 
-# Lê o arquivo com os links
-links_df = pd.read_excel("links_startups.xlsx")
-abas_links = dict(zip(links_df['ABA'], links_df['LINK']))
+# Fonte dos links: usa o config.py (mesma fonte que a publicação automática).
+# Antes lia de links_startups.xlsx, um arquivo que não existe no repositório —
+# a interface quebrava logo ao abrir, com FileNotFoundError. Se o arquivo
+# existir localmente, ele tem prioridade, para não mudar o fluxo de quem o usa.
+ARQUIVO_LINKS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "links_startups.xlsx")
+
+if os.path.exists(ARQUIVO_LINKS):
+    links_df = pd.read_excel(ARQUIVO_LINKS)
+    abas_links = dict(zip(links_df['ABA'], links_df['LINK']))
+    print(f"Links carregados de {ARQUIVO_LINKS}")
+else:
+    abas_links = dict(config.ABAS_LINKS)
+    print("Links carregados de src/config.py")
 
 # Lista de abas que devem usar criaHTMLPais.py
 abas_pais = [

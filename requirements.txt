@@ -1,6 +1,6 @@
 pandas
 gspread
-oauth2client
+google-auth
 python-dotenv
 requests
 pyperclip

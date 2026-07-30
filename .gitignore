@@ -20,6 +20,7 @@ tabelas-atualizadas/
 # Material de apoio local (cópia da planilha, backups do Apps Script).
 # O Apps Script versionado fica em apps-script/.
 material-fora-do-repo/
+.material-fora-do-repo/
 
 # Cópias locais da planilha
 *.xlsx

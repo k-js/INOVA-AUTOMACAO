@@ -1,6 +1,21 @@
 import os
+import sys
 import json
 import time
+
+# O console do Windows costuma usar uma codificação legada (cp1252) que não
+# consegue imprimir emoji nem acento, e derruba o script com
+# UnicodeEncodeError. Força UTF-8 na saída antes de qualquer print.
+for _fluxo in (sys.stdout, sys.stderr):
+    try:
+        _fluxo.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+# Os módulos do projeto ficam em src/. Isso os torna importáveis
+# independentemente de onde o script é chamado.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+
 import gspread
 from google.oauth2.service_account import Credentials
 from criarHTML import processa_aba_gera_html
