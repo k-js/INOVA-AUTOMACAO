@@ -23,6 +23,9 @@
 /**
  * Abas de estrutura/apoio e rascunhos: nunca contêm organizações a publicar.
  * Devem espelhar ABAS_IGNORADAS em src/config.py do repositório.
+ *
+ * @type {!Array<string>}
+ * @const
  */
 var ABAS_ESTRUTURA = [
   'HOME',
@@ -40,34 +43,70 @@ var ABAS_ESTRUTURA = [
  * Abas de categorias que ainda NÃO têm página criada no site.
  * Ao criar a página no WordPress, remova o nome desta lista e adicione a aba
  * em ABAS_LINKS no src/config.py do repositório.
+ *
+ * @type {!Array<string>}
+ * @const
  */
 var ABAS_SEM_PAGINA_NO_SITE = [
-  'AGTECHS',
-  'BEAUTYTECHS',
-  'EVENTECHS',
-  'FASHIONTECHS',
-  'GAMETECHS',
-  'INSURTECHS',
-  'PORTAIS DE NOTÍCIAS',
-  'SECURITYTECHS',
-  'SPORTECHS',
-  'TRAVELTECHS'
+  'AGTECHS',              ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'BEAUTYTECHS',          ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'EVENTECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'FASHIONTECHS',         ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'GAMETECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'INSURTECHS',           ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'PORTAIS DE NOTÍCIAS',  ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'SECURITYTECHS',        ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'SPORTECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'TRAVELTECHS'           ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
 ];
 
-/** Valores de STATUS que indicam que a aba precisa ser republicada. */
+/**
+ * Valores de STATUS que indicam que a aba precisa ser republicada.
+ *
+ * @type {!Array<string>}
+ * @const
+ */
 var STATUS_PENDENTES = ['EDITAR', 'ADICIONAR AO SITE', 'REMOVER'];
 
-/** Opções do dropdown da coluna STATUS. */
+/**
+ * Lista de opções do dropdown de STATUS (primeiro item é string vazia).
+ *
+ * @type {!Array<string>}
+ * @const
+ */
 var STATUS_OPCOES = [
-  '',                     // em branco por padrão
+  '',                     // deixa o seletor aparecer em branco inicialmente
   'REMOVER',
   'EDITAR',
   'ADICIONAR AO SITE',
   'ADICIONADO AO SITE'
 ];
 
-/** Variações aceitas para a coluna que identifica a organização. */
+/**
+ * Variações aceitas para a coluna que identifica a organização.
+ *
+ * @type {!Array<string>}
+ * @const
+ */
 var COLUNAS_IDENTIFICADOR = ['NOME', 'ORGANIZACAO', 'NOME OU ORGANIZACAO'];
+
+/**
+ * Nome do arquivo HTML do diálogo, sem a extensão.
+ *
+ * ⚠️ Esta é uma referência POR STRING a outro arquivo do projeto Apps Script.
+ * O editor não a verifica: se o arquivo Dialog.html for renomeado, nada acusa
+ * o problema até alguém clicar no menu e a chamada falhar em execução.
+ *
+ * A API do HtmlService só aceita o nome como texto, então a referência por
+ * string é inevitável — mas fica centralizada aqui, e verificarArquivoDialog()
+ * transforma a falha em uma mensagem que diz o que fazer.
+ *
+ * Ao renomear o arquivo no editor do Apps Script, atualize este valor.
+ *
+ * @type {string}
+ * @const
+ */
+var ARQUIVO_DIALOGO = 'Dialog';
 
 
 // =====================================================================
@@ -98,15 +137,23 @@ var COLUNAS_IDENTIFICADOR = ['NOME', 'ORGANIZACAO', 'NOME OU ORGANIZACAO'];
  *
  * Um Map é usado no lugar de objeto literal para evitar colisão com nomes
  * herdados de Object.prototype (ex.: uma aba chamada 'constructor').
+ *
+ * @type {!Map<string, string>}
+ * @private
  */
 var _cacheNormalizacao = new Map();
 
 /**
  * Maiúsculo, sem espaços nas pontas e sem acentos.
+ *
  * Permite comparar nomes sem depender de como foram digitados:
  * 'País', 'PAIS' e 'PAÍS' viram todos 'PAIS'.
  *
  * Custo: O(t) na primeira vez para um texto de tamanho t; O(1) nas seguintes.
+ *
+ * @param {*} txt Texto a normalizar. Valores não-string são convertidos;
+ *     null e undefined viram string vazia.
+ * @return {string} Texto em maiúsculas, sem acentos e sem espaços nas pontas.
  */
 function normalizarTexto(txt) {
   if (txt === null || txt === undefined) return '';
@@ -118,8 +165,8 @@ function normalizarTexto(txt) {
   var resultado = chave
     .trim()
     .toUpperCase()
-    .normalize('NFD')                  // separa letra e acento
-    .replace(/[̀-ͯ]/g, '');  // remove o acento
+    .normalize('NFD')                  // separa acentos
+    .replace(/[̀-ͯ]/g, '');  // remove acentos
 
   _cacheNormalizacao.set(chave, resultado);
   return resultado;
@@ -133,6 +180,10 @@ function normalizarTexto(txt) {
  * responde em O(1). É o caso de padronizarAbas, que procura 9 colunas por aba.
  *
  * Retorna um Map, cujas chaves não colidem com Object.prototype.
+ *
+ * @param {!Array<*>} cabecalho Primeira linha da aba, como vem de getValues().
+ * @return {!Map<string, number>} Nome normalizado -> índice base 0. Em caso de
+ *     nomes repetidos, a primeira ocorrência vence (como indexOf()).
  */
 function indexarCabecalho(cabecalho) {
   var indice = new Map();
@@ -156,6 +207,11 @@ function indexarCabecalho(cabecalho) {
  * Aceita tanto o array de cabeçalho quanto um índice pronto de
  * indexarCabecalho(). Passe o índice quando for procurar várias colunas no
  * mesmo cabeçalho.
+ *
+ * @param {!Array<*>|!Map<string, number>} cabecalhoOuIndice Cabeçalho cru ou
+ *     índice construído por indexarCabecalho().
+ * @param {string} nomeProcurado Nome da coluna, com ou sem acento.
+ * @return {number} Índice base 0 da coluna, ou -1 se não existir.
  */
 function acharColuna(cabecalhoOuIndice, nomeProcurado) {
   var alvo = normalizarTexto(nomeProcurado);
@@ -182,6 +238,10 @@ function acharColuna(cabecalhoOuIndice, nomeProcurado) {
  * A busca varre o cabeçalho na ordem das colunas (e não na ordem das variações
  * aceitas) para que, numa aba com NOME e ORGANIZAÇÃO, vença a que aparece
  * primeiro — o mesmo critério do restante do código.
+ *
+ * @param {!Array<*>|!Map<string, number>} cabecalhoOuIndice Cabeçalho cru ou
+ *     índice construído por indexarCabecalho().
+ * @return {number} Índice base 0 da coluna identificadora, ou -1.
  */
 function acharColunaIdentificador(cabecalhoOuIndice) {
   if (cabecalhoOuIndice instanceof Map) {
@@ -221,17 +281,32 @@ var _STATUS_PENDENTES_NORM = new Set(STATUS_PENDENTES.map(normalizarTexto));
 /** @type {Set<string>} */
 var _IDENTIFICADORES = new Set(COLUNAS_IDENTIFICADOR.map(normalizarTexto));
 
-/** True se a aba é de estrutura/apoio e não deve ser tratada como aba de dados. */
+/**
+ * True se a aba é de estrutura/apoio e não deve ser tratada como aba de dados.
+ *
+ * @param {string} nomeAba Nome da aba, como aparece na planilha.
+ * @return {boolean}
+ */
 function ehAbaDeEstrutura(nomeAba) {
   return _ABAS_ESTRUTURA_NORM.has(normalizarTexto(nomeAba));
 }
 
-/** True se a aba ainda não tem página no site e portanto não deve ser publicada. */
+/**
+ * True se a aba ainda não tem página no site e portanto não deve ser publicada.
+ *
+ * @param {string} nomeAba Nome da aba, como aparece na planilha.
+ * @return {boolean}
+ */
 function ehAbaSemPaginaNoSite(nomeAba) {
   return _ABAS_SEM_PAGINA_NORM.has(normalizarTexto(nomeAba));
 }
 
-/** True se o valor de STATUS indica que a aba precisa ser republicada. */
+/**
+ * True se o valor de STATUS indica que a aba precisa ser republicada.
+ *
+ * @param {*} valor Conteúdo da célula de STATUS.
+ * @return {boolean}
+ */
 function ehStatusPendente(valor) {
   return _STATUS_PENDENTES_NORM.has(normalizarTexto(valor));
 }
@@ -241,6 +316,9 @@ function ehStatusPendente(valor) {
  *
  * Necessário para montar endereços no formato aceito por getRangeList(), que
  * recebe notação A1 e não índices numéricos.
+ *
+ * @param {number} numero Número da coluna, base 1.
+ * @return {string} Letra correspondente em notação A1.
  */
 function colunaParaLetra(numero) {
   var letra = '';
@@ -262,6 +340,10 @@ function colunaParaLetra(numero) {
  *
  * É esta lista que o main.py lê para decidir o que publicar — se uma aba não
  * aparecer aqui, ela não é atualizada no site.
+ *
+ * Rodar pelo editor do Apps Script (Executar → checarAbasComStatus).
+ *
+ * @return {void}
  */
 function checarAbasComStatus() {
   var planilha = SpreadsheetApp.getActiveSpreadsheet();
@@ -303,6 +385,7 @@ function checarAbasComStatus() {
     }
   });
 
+  // Limpa e escreve os nomes na aba "CHECAR ABAS"
   abaChecagem.getRange('A2:A').clearContent();
 
   if (abasComStatus.length > 0) {
@@ -332,13 +415,18 @@ function checarAbasComStatus() {
 /**
  * Aplica formatação uniforme às abas de dados e coloca o dropdown de STATUS
  * nas linhas ainda em branco.
+ *
+ * Rodar pelo editor do Apps Script (Executar → padronizarAbas).
+ *
+ * @return {void}
  */
 function padronizarAbas() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // Construir objeto de validação uma vez
   var statusValidation = SpreadsheetApp.newDataValidation()
-    .requireValueInList(STATUS_OPCOES, true)
-    .setAllowInvalid(false)
+    .requireValueInList(STATUS_OPCOES, true)   // true => mostrar dropdown
+    .setAllowInvalid(false)                    // não permitir valores fora da lista
     .build();
 
   // Largura e alinhamento por coluna. Os nomes são comparados sem acento,
@@ -363,15 +451,18 @@ function padronizarAbas() {
   ss.getSheets().forEach(function (sheet) {
     var nomeAba = sheet.getName();
 
-    // CORRIGIDO: a checagem antiga era "CHECHAR ABAS" (com CH a mais), então a
-    // aba de controle nunca era pulada e era formatada como aba de dados.
+    // Ignorar abas específicas
+    //
+    // CORRIGIDO: estava "CHECHAR ABAS" (com CH a mais), então a aba de controle
+    // "CHECAR ABAS" nunca era pulada e acabava sendo formatada como se fosse
+    // uma aba de dados.
     if (ehAbaDeEstrutura(nomeAba)) return;
 
     var lastRow = sheet.getLastRow();
     var lastCol = sheet.getLastColumn();
     if (lastRow < 1 || lastCol < 1) return;
 
-    // --- Cabeçalho ---
+    // --- Cabeçalho (primeira linha) ---
     sheet.getRange(1, 1, 1, lastCol)
       .setFontWeight('bold')
       .setFontSize(11)
@@ -382,7 +473,7 @@ function padronizarAbas() {
 
     if (lastRow < 2) return;  // sem linhas de dados
 
-    // --- Corpo ---
+    // --- Restante da planilha ---
     sheet.getRange(2, 1, lastRow - 1, lastCol)
       .setFontSize(11)
       .setFontFamily('Calibri')
@@ -391,13 +482,16 @@ function padronizarAbas() {
       .setFontColor('black')
       .setBorder(false, false, false, false, false, false);
 
+    // Normalizar cabeçalhos
     var cabecalho = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
 
     // Um índice construído em uma passada O(C) responde as 9 buscas seguintes
     // em O(1) cada, no lugar de 9 varreduras completas do cabeçalho.
     var indiceCabecalho = indexarCabecalho(cabecalho);
 
-    // --- Formatação por coluna ---
+    // --- Aplicar formatação por coluna ---
+    // (era a "função auxiliar para procurar e aplicar formatação"; agora a
+    // busca sai do índice pré-construído em vez de varrer o cabeçalho)
     formatos.forEach(function (formato) {
       var idx = acharColuna(indiceCabecalho, formato.nome);
       if (idx === -1) return;
@@ -411,6 +505,8 @@ function padronizarAbas() {
     // --- Dropdown de STATUS nas linhas sem organização preenchida ---
     var idxNome = acharColunaIdentificador(indiceCabecalho);
     var idxStatus = acharColuna(indiceCabecalho, 'STATUS');
+    // Só executa se achar o STATUS, o Identificador (Nome/Org) e se houver
+    // linhas com dados
     if (idxNome === -1 || idxStatus === -1) return;
 
     var nomeVals = sheet.getRange(2, idxNome + 1, lastRow - 1, 1).getValues();
@@ -426,6 +522,9 @@ function padronizarAbas() {
     }
 
     if (celulasVazias.length === 0) return;
+
+    // Aplica a validação nas células STATUS correspondentes e limpa o valor
+    // atual, deixando-as em branco.
 
     // Uma chamada à API para todas essas células, via RangeList, no lugar de
     // duas chamadas POR LINHA. O conjunto de células afetadas é exatamente o
@@ -453,6 +552,10 @@ function padronizarAbas() {
  * O Apps Script tem tempo limite de execução, então a varredura é feita em
  * lotes: cada chamada processa LOTE_TAMANHO links e guarda a posição. Rode
  * repetidamente até aparecer a mensagem de conclusão.
+ *
+ * Rodar pelo editor do Apps Script (Executar → checarLinksErros).
+ *
+ * @return {void}
  */
 function checarLinksErros() {
   var LOTE_TAMANHO = 40;
@@ -467,6 +570,7 @@ function checarLinksErros() {
 
   var props = PropertiesService.getScriptProperties();
 
+  // Carrega a lista da memória do Apps Script
   var todosLinks = [];
   try {
     todosLinks = JSON.parse(props.getProperty('todosLinks') || '[]');
@@ -476,7 +580,7 @@ function checarLinksErros() {
 
   var ultimaPos = parseInt(props.getProperty('ultimaPos') || '0', 10);
 
-  // --- Primeira execução do ciclo: coleta os links ---
+  // --- Primeira execução do ciclo: varre todas as abas para coletar os links ---
   if (todosLinks.length === 0) {
     ss.getSheets().forEach(function (sheet) {
       var nomeAba = sheet.getName();
@@ -485,9 +589,11 @@ function checarLinksErros() {
       var valores = sheet.getDataRange().getValues();
       if (valores.length < 2) return;
 
+      // Remove e isola a primeira linha (cabeçalhos) com segurança
       var headers = valores.shift();
       var indiceCabecalho = indexarCabecalho(headers);
 
+      // Mapeia onde estão as colunas necessárias
       var idxLink = acharColuna(indiceCabecalho, 'LINK');
       if (idxLink === -1) return;
 
@@ -496,9 +602,11 @@ function checarLinksErros() {
       // normalizada cobre todas as variações de uma vez.
       var idxNome = acharColunaIdentificador(indiceCabecalho);
 
+      // Varre as linhas de dados restantes
       valores.forEach(function (linha) {
         var link = linha[idxLink];
         if (typeof link === 'string' && link.match(/^https?:\/\//i)) {
+          // Armazena em formato de OBJETO nomeado para evitar bugs de leitura
           todosLinks.push({
             url: link,
             nome: (idxNome !== -1) ? linha[idxNome] : '',
@@ -513,7 +621,7 @@ function checarLinksErros() {
       return;
     }
 
-    // Limpa o resultado da checagem anterior.
+    // Limpa registros anteriores na aba de checagem.
     // Mantido o intervalo original C:F — a checagem grava em C, D e E, mas a
     // coluna F pode ter conteúdo de versões anteriores. Não reduzir o alcance
     // sem antes conferir o que existe em F na planilha.
@@ -524,7 +632,7 @@ function checarLinksErros() {
     ultimaPos = 0;
   }
 
-  // --- Processa o lote atual ---
+  // --- Processa o lote atual de links coletados ---
   var erros = [];
   var fim = Math.min(ultimaPos + LOTE_TAMANHO, todosLinks.length);
 
@@ -555,13 +663,14 @@ function checarLinksErros() {
     if ((i - ultimaPos + 1) % 10 === 0) Utilities.sleep(PAUSA_MS);
   }
 
+  // Grava os erros deste lote na planilha de controle
   if (erros.length > 0) {
     abaDestino
       .getRange(abaDestino.getLastRow() + 1, 3, erros.length, 3)
       .setValues(erros);
   }
 
-  // --- Salva a posição ou encerra o ciclo ---
+  // --- Finalização ou avanço do lote: atualiza os ponteiros de paginação ---
   if (fim >= todosLinks.length) {
     props.deleteProperty('todosLinks');
     props.deleteProperty('ultimaPos');
@@ -572,6 +681,7 @@ function checarLinksErros() {
   }
 
   try {
+    // Atualiza os ponteiros de paginação na memória do sistema
     props.setProperty('todosLinks', JSON.stringify(todosLinks));
     props.setProperty('ultimaPos', String(fim));
     SpreadsheetApp.getActive().toast(
@@ -596,6 +706,14 @@ function checarLinksErros() {
 // 4. Menu e edição de link individual
 // =====================================================================
 
+/**
+ * Cria o menu personalizado da planilha.
+ *
+ * Gatilho simples: o Apps Script chama esta função sozinho toda vez que a
+ * planilha é aberta. Não deve ser executada manualmente.
+ *
+ * @return {void}
+ */
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('CHECAR LINKS')
@@ -607,6 +725,10 @@ function onOpen() {
 /**
  * Abre o diálogo de ação para o link selecionado na aba "CHECAR ABAS".
  * Espera que a célula ativa esteja na coluna C (LINK).
+ *
+ * Acionada pelo menu "CHECAR LINKS" → "Editar link selecionado".
+ *
+ * @return {void}
  */
 function abrirDialog() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -629,7 +751,22 @@ function abrirDialog() {
     return;
   }
 
-  var template = HtmlService.createTemplateFromFile('Dialog');
+  // A referência ao arquivo do diálogo é por string e o editor do Apps Script
+  // não a valida. Sem este tratamento, um arquivo renomeado produz um erro
+  // genérico do Google, que não indica a causa nem o conserto.
+  var template;
+  try {
+    template = HtmlService.createTemplateFromFile(ARQUIVO_DIALOGO);
+  } catch (e) {
+    SpreadsheetApp.getUi().alert(
+      'Não foi possível abrir o diálogo: o arquivo "' + ARQUIVO_DIALOGO
+      + '.html" não foi encontrado no projeto.\n\n'
+      + 'Se ele foi renomeado, atualize a constante ARQUIVO_DIALOGO no topo '
+      + 'do Codigo.gs para bater com o novo nome.'
+    );
+    return;
+  }
+
   template.linha = linha;
   template.linkAtual = linkAtual;
   template.nomeOrg = aba.getRange(linha, 4).getValue();
@@ -646,7 +783,19 @@ function abrirDialog() {
  * Aplica na aba de origem a ação escolhida no diálogo e remove a linha
  * correspondente de "CHECAR ABAS".
  *
- * Chamada pelo Dialog.html via google.script.run.
+ * Chamada pelo Dialog.html via google.script.run. Os erros lançados aqui
+ * chegam ao withFailureHandler() do diálogo.
+ *
+ * @param {number} linha Linha em "CHECAR ABAS" a remover após a ação.
+ * @param {string} linkAtual Link quebrado, usado para desambiguar organizações
+ *     de mesmo nome.
+ * @param {string} nomeOrg Nome da organização na aba de origem.
+ * @param {string} nomeAbaOrigem Aba onde a organização está cadastrada.
+ * @param {string} acao 'alterar' ou 'remover'.
+ * @param {string} novoLink Link novo; usado apenas quando acao é 'alterar'.
+ * @return {void}
+ * @throws {Error} Se a aba não existir, se faltar coluna obrigatória, se a
+ *     organização não for encontrada ou se a ação for desconhecida.
  */
 function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -738,5 +887,6 @@ function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink)
     throw new Error('Ação desconhecida: ' + acao);
   }
 
+  // Apaga a linha da CHECAR ABAS
   abaChecar.deleteRow(linha);
 }

@@ -2,37 +2,227 @@
 <html>
   <head>
     <base target="_top">
+
+    <!--
+      Diálogo de ação para um link quebrado, aberto por abrirDialog() no
+      Codigo.gs a partir do menu "CHECAR LINKS".
+
+      Fluxo: checarLinksErros() lista os links quebrados na aba "CHECAR ABAS";
+      o usuário seleciona a célula do link e usa este diálogo para corrigir ou
+      remover a organização na aba de origem.
+
+      ⚠️ O nome deste arquivo é referenciado por STRING em Codigo.gs (constante
+      ARQUIVO_DIALOGO). Ao renomeá-lo, atualize aquela constante também.
+    -->
+
+    <!-- Estilo do editor do Google, para o diálogo não destoar da planilha. -->
+    <link rel="stylesheet"
+          href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+
+    <style>
+      body {
+        font-family: Roboto, Arial, sans-serif;
+        font-size: 13px;
+        margin: 0;
+        padding: 16px;
+      }
+      .organizacao {
+        font-weight: bold;
+        word-break: break-word;   /* nomes longos não estouram o diálogo */
+      }
+      .link-atual {
+        color: #5f6368;
+        font-size: 12px;
+        word-break: break-all;    /* URLs longas quebram em vez de vazar */
+        margin: 4px 0 16px;
+      }
+      .campo {
+        display: none;            /* só aparece ao escolher "Alterar link" */
+        margin-bottom: 16px;
+      }
+      .campo label {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .campo input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+      }
+      .erro {
+        display: none;
+        color: #d93025;
+        margin-bottom: 12px;
+        white-space: pre-wrap;    /* preserva as quebras das mensagens */
+      }
+      .acoes {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ocupado {
+        opacity: 0.6;
+        pointer-events: none;     /* bloqueia clique duplo durante o envio */
+      }
+    </style>
   </head>
+
   <body>
-    <p>Escolha a ação para a organização: <b><?= nomeOrg ?></b></p>
-    <button onclick="alterar()">Alterar link</button>
-    <button onclick="remover()">Remover linha</button>
-    <button onclick="google.script.host.close()">Cancelar</button>
+    <p>
+      Escolha a ação para a organização:<br>
+      <span class="organizacao" id="rotuloOrganizacao"></span>
+    </p>
+
+    <div class="link-atual" id="rotuloLinkAtual"></div>
+
+    <div class="erro" id="areaErro" role="alert"></div>
+
+    <!-- Campo embutido no lugar de prompt(): o prompt() do navegador é
+         bloqueado em alguns contextos de diálogo do Apps Script, e ali não dá
+         para validar a entrada nem mostrar o link antigo lado a lado. -->
+    <div class="campo" id="campoNovoLink">
+      <label for="novoLink">Novo link (começando com http:// ou https://):</label>
+      <input type="url" id="novoLink" placeholder="https://exemplo.com.br">
+    </div>
+
+    <div class="acoes" id="areaAcoes">
+      <button class="action" id="btnAlterar">Alterar link</button>
+      <button id="btnRemover">Remover linha</button>
+      <button id="btnCancelar">Cancelar</button>
+    </div>
 
     <script>
-      var linha = <?= linha ?>;
-      var linkAtual = "<?= linkAtual ?>";
-      var nomeOrg = "<?= nomeOrg ?>";
-      var nomeAbaOrigem = "<?= nomeAbaOrigem ?>";
+      // Os dados chegam do servidor como um literal JSON já pronto, montado
+      // com JSON.stringify na tag de saída não-escapada logo abaixo.
+      //
+      // CORRIGIDO: antes cada campo era interpolado individualmente dentro de
+      // aspas, com a tag de saída escapada. Essa tag escapa para contexto
+      // HTML, mas NÃO para dentro de uma string JavaScript. Uma organização
+      // com aspas no nome — a planilha tem 'Incubadora de Empresas "Arcângelo
+      // Nigro"' — encerrava a string no meio e quebrava o script inteiro: o
+      // diálogo abria sem funcionar, sem erro visível. Nomes com quebra de
+      // linha ('Tim Ransley Alimentos') faziam o mesmo.
+      //
+      // JSON.stringify no servidor produz um literal sempre válido, qualquer
+      // que seja o conteúdo vindo da planilha.
+      // O replace de '/' é necessário além do JSON.stringify: um valor da
+      // planilha contendo a sequência de fechamento de script encerraria este
+      // bloco antes da hora, e o resto do código viraria conteúdo da página.
+      // Escapar a barra produz um literal equivalente que o parser de HTML não
+      // reconhece como fechamento de tag.
+      var dados = <?!= JSON.stringify({
+        linha: linha,
+        linkAtual: String(linkAtual),
+        nomeOrg: String(nomeOrg),
+        nomeAbaOrigem: String(nomeAbaOrigem)
+      }).replace(/\//g, '\\/') ?>;
 
-      function alterar() {
-        var novoLink = prompt("Digite o novo link para " + nomeOrg + ":");
-        if (novoLink) {
-          enviarAcao('alterar', novoLink);
-        }
+      var areaErro = document.getElementById('areaErro');
+      var areaAcoes = document.getElementById('areaAcoes');
+      var campoNovoLink = document.getElementById('campoNovoLink');
+      var entradaNovoLink = document.getElementById('novoLink');
+      var btnAlterar = document.getElementById('btnAlterar');
+
+      // textContent (e não innerHTML) para que um nome com sinal de menor ou
+      // E comercial apareça literalmente, sem ser interpretado como marcação.
+      document.getElementById('rotuloOrganizacao').textContent = dados.nomeOrg;
+      document.getElementById('rotuloLinkAtual').textContent =
+          'Link atual: ' + dados.linkAtual;
+
+      /** Exibe uma mensagem de erro dentro do diálogo. */
+      function mostrarErro(mensagem) {
+        areaErro.textContent = mensagem;
+        areaErro.style.display = 'block';
       }
 
-      function remover() {
-        if (confirm("Deseja realmente remover esta linha?")) {
+      /** Esconde a mensagem de erro. */
+      function limparErro() {
+        areaErro.style.display = 'none';
+      }
+
+      /**
+       * Envia a ação escolhida ao Codigo.gs.
+       *
+       * @param {string} acao 'alterar' ou 'remover'.
+       * @param {string} novoLink Usado apenas quando acao é 'alterar'.
+       */
+      function enviarAcao(acao, novoLink) {
+        limparErro();
+
+        // Trava os botões durante o envio: sem isso, um clique duplo dispara
+        // processarAcao() duas vezes, e a segunda chamada tenta apagar uma
+        // linha que a primeira já removeu.
+        areaAcoes.classList.add('ocupado');
+
+        google.script.run
+          .withSuccessHandler(function () {
+            google.script.host.close();
+          })
+          // Sem este handler, um erro lançado por processarAcao (aba sem a
+          // coluna esperada, organização não encontrada) não aparecia em lugar
+          // nenhum: o diálogo ficava aberto e parecia travado.
+          .withFailureHandler(function (erro) {
+            areaAcoes.classList.remove('ocupado');
+            mostrarErro('Não foi possível concluir:\n\n' + erro.message);
+          })
+          .processarAcao(
+            dados.linha,
+            dados.linkAtual,
+            dados.nomeOrg,
+            dados.nomeAbaOrigem,
+            acao,
+            novoLink
+          );
+      }
+
+      // Primeiro clique revela o campo; o segundo confirma. Assim o usuário vê
+      // o link antigo enquanto digita o novo.
+      btnAlterar.addEventListener('click', function () {
+        if (campoNovoLink.style.display !== 'block') {
+          campoNovoLink.style.display = 'block';
+          entradaNovoLink.value = dados.linkAtual;
+          entradaNovoLink.focus();
+          entradaNovoLink.select();
+          btnAlterar.textContent = 'Confirmar novo link';
+          return;
+        }
+
+        var novoLink = entradaNovoLink.value.trim();
+
+        if (!novoLink) {
+          mostrarErro('Informe o novo link.');
+          return;
+        }
+        if (!/^https?:\/\//i.test(novoLink)) {
+          mostrarErro('O link precisa começar com http:// ou https://');
+          return;
+        }
+        if (novoLink === dados.linkAtual) {
+          mostrarErro('O link informado é igual ao atual.');
+          return;
+        }
+
+        enviarAcao('alterar', novoLink);
+      });
+
+      // Enter no campo equivale a clicar em "Confirmar novo link".
+      entradaNovoLink.addEventListener('keydown', function (evento) {
+        if (evento.key === 'Enter') {
+          evento.preventDefault();
+          btnAlterar.click();
+        }
+      });
+
+      document.getElementById('btnRemover').addEventListener('click', function () {
+        if (confirm('Deseja realmente marcar "' + dados.nomeOrg
+                    + '" para remoção do site?')) {
           enviarAcao('remover', '');
         }
-      }
+      });
 
-      function enviarAcao(acao, novoLink) {
-        google.script.run.withSuccessHandler(function() {
-          google.script.host.close();
-        }).processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink);
-      }
+      document.getElementById('btnCancelar').addEventListener('click', function () {
+        google.script.host.close();
+      });
     </script>
   </body>
 </html>
