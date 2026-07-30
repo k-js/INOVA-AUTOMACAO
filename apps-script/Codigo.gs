@@ -364,23 +364,32 @@ function checarAbasComStatus() {
 
     if (ehAbaDeEstrutura(nomeAba) || ehAbaSemPaginaNoSite(nomeAba)) return;
 
-    var dados = aba.getDataRange().getValues();
-    if (dados.length < 2) return;  // só cabeçalho, ou vazia
+    var ultimaLinha = aba.getLastRow();
+    var ultimaColuna = aba.getLastColumn();
+    if (ultimaLinha < 2 || ultimaColuna < 1) return;  // só cabeçalho, ou vazia
+
+    // Só o cabeçalho: uma linha, em vez da aba inteira.
+    var cabecalho = aba.getRange(1, 1, 1, ultimaColuna).getValues()[0];
 
     // Busca tolerante a acento e espaço: com indexOf() exato, um espaço a mais
     // no cabeçalho faria a aba ser pulada sem aviso, e ela deixaria de ser
     // publicada sem ninguém perceber.
-    var indiceStatus = acharColuna(dados[0], 'STATUS');
+    var indiceStatus = acharColuna(cabecalho, 'STATUS');
     if (indiceStatus === -1) {
       abasSemColunaStatus.push(nomeAba);
       return;
     }
 
+    // Apenas a coluna STATUS. getDataRange() traria todas as colunas de todas
+    // as linhas — dezenas de milhares de células somando as 38 abas — quando
+    // basta uma coluna para decidir se a aba tem pendência.
+    var status = aba.getRange(2, indiceStatus + 1, ultimaLinha - 1, 1).getValues();
+
     // Busca em Set (O(1)) no lugar de indexOf em Array (O(k)), e a saída
     // antecipada evita varrer o resto da aba assim que a primeira pendência
     // aparece: no melhor caso, 1 linha em vez de todas.
-    for (var i = 1; i < dados.length; i++) {
-      if (ehStatusPendente(dados[i][indiceStatus])) {
+    for (var i = 0; i < status.length; i++) {
+      if (ehStatusPendente(status[i][0])) {
         abasComStatus.push(nomeAba);
         return;  // basta uma linha pendente para a aba entrar na lista
       }
