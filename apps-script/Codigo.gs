@@ -73,19 +73,76 @@ var COLUNAS_IDENTIFICADOR = ['NOME', 'ORGANIZACAO', 'NOME OU ORGANIZACAO'];
 // =====================================================================
 // Utilidades
 // =====================================================================
+//
+// Nota sobre desempenho neste arquivo:
+//
+// O custo dominante NÃO é o processamento em JavaScript, e sim cada chamada à
+// API do Sheets (getRange, setValue, getValues...). Uma chamada dessas custa
+// dezenas de milissegundos — ordens de grandeza mais que uma iteração de laço.
+// Com o limite de 6 minutos de execução do Apps Script, o que importa é
+// reduzir o NÚMERO DE CHAMADAS À API, não a complexidade dos laços.
+//
+// Por isso as otimizações aqui seguem duas linhas:
+//   1. Evitar recomputar o que não muda (memoização e pré-normalização)
+//   2. Agrupar escritas em uma única chamada quando elas atingem as mesmas
+//      células que seriam escritas individualmente
+
+/**
+ * Cache de normalizações já calculadas.
+ *
+ * normalizarTexto() é chamada milhares de vezes por execução, quase sempre
+ * sobre os mesmos valores (nomes de aba, cabeçalhos, valores de STATUS que se
+ * repetem em todas as linhas). Como normalize('NFD') + regex aloca strings
+ * novas a cada chamada, memorizar o resultado troca esse custo por uma
+ * consulta O(1).
+ *
+ * Um Map é usado no lugar de objeto literal para evitar colisão com nomes
+ * herdados de Object.prototype (ex.: uma aba chamada 'constructor').
+ */
+var _cacheNormalizacao = new Map();
 
 /**
  * Maiúsculo, sem espaços nas pontas e sem acentos.
  * Permite comparar nomes sem depender de como foram digitados:
  * 'País', 'PAIS' e 'PAÍS' viram todos 'PAIS'.
+ *
+ * Custo: O(t) na primeira vez para um texto de tamanho t; O(1) nas seguintes.
  */
 function normalizarTexto(txt) {
   if (txt === null || txt === undefined) return '';
-  return String(txt)
+
+  var chave = String(txt);
+  var emCache = _cacheNormalizacao.get(chave);
+  if (emCache !== undefined) return emCache;
+
+  var resultado = chave
     .trim()
     .toUpperCase()
     .normalize('NFD')                  // separa letra e acento
     .replace(/[̀-ͯ]/g, '');  // remove o acento
+
+  _cacheNormalizacao.set(chave, resultado);
+  return resultado;
+}
+
+/**
+ * Constrói um índice nome-normalizado -> posição a partir de um cabeçalho.
+ *
+ * Vale a pena quando várias colunas são procuradas no mesmo cabeçalho: em vez
+ * de uma varredura por busca (O(C) cada), faz uma única passada O(C) e depois
+ * responde em O(1). É o caso de padronizarAbas, que procura 9 colunas por aba.
+ *
+ * Retorna um Map, cujas chaves não colidem com Object.prototype.
+ */
+function indexarCabecalho(cabecalho) {
+  var indice = new Map();
+  for (var i = 0; i < cabecalho.length; i++) {
+    var chave = normalizarTexto(cabecalho[i]);
+    // Primeira ocorrência vence, para espelhar o comportamento de indexOf()
+    // quando o cabeçalho tem nomes repetidos.
+    if (!indice.has(chave)) indice.set(chave, i);
+  }
+  return indice;
 }
 
 /**
@@ -95,11 +152,21 @@ function normalizarTexto(txt) {
  * Use sempre isto no lugar de `cabecalho.indexOf('PAÍS')`: a busca exata falha
  * quando a planilha tem o nome com acento diferente ou espaço a mais, e a
  * coluna passa a ser ignorada em silêncio.
+ *
+ * Aceita tanto o array de cabeçalho quanto um índice pronto de
+ * indexarCabecalho(). Passe o índice quando for procurar várias colunas no
+ * mesmo cabeçalho.
  */
-function acharColuna(cabecalho, nomeProcurado) {
+function acharColuna(cabecalhoOuIndice, nomeProcurado) {
   var alvo = normalizarTexto(nomeProcurado);
-  for (var i = 0; i < cabecalho.length; i++) {
-    if (normalizarTexto(cabecalho[i]) === alvo) return i;
+
+  if (cabecalhoOuIndice instanceof Map) {
+    var achado = cabecalhoOuIndice.get(alvo);
+    return (achado === undefined) ? -1 : achado;
+  }
+
+  for (var i = 0; i < cabecalhoOuIndice.length; i++) {
+    if (normalizarTexto(cabecalhoOuIndice[i]) === alvo) return i;
   }
   return -1;
 }
@@ -111,31 +178,78 @@ function acharColuna(cabecalho, nomeProcurado) {
  * Necessário porque as abas não seguem um padrão único: Aceleradoras, Hubs,
  * Parques, Institutos e Inovação nas Universidades usam ORGANIZAÇÃO; as demais
  * usam NOME.
+ *
+ * A busca varre o cabeçalho na ordem das colunas (e não na ordem das variações
+ * aceitas) para que, numa aba com NOME e ORGANIZAÇÃO, vença a que aparece
+ * primeiro — o mesmo critério do restante do código.
  */
-function acharColunaIdentificador(cabecalho) {
-  for (var i = 0; i < cabecalho.length; i++) {
-    var normalizado = normalizarTexto(cabecalho[i]);
-    if (COLUNAS_IDENTIFICADOR.indexOf(normalizado) !== -1) return i;
+function acharColunaIdentificador(cabecalhoOuIndice) {
+  if (cabecalhoOuIndice instanceof Map) {
+    var melhor = -1;
+    _IDENTIFICADORES.forEach(function (variacao) {
+      var idx = cabecalhoOuIndice.get(variacao);
+      if (idx !== undefined && (melhor === -1 || idx < melhor)) melhor = idx;
+    });
+    return melhor;
+  }
+
+  for (var i = 0; i < cabecalhoOuIndice.length; i++) {
+    if (_IDENTIFICADORES.has(normalizarTexto(cabecalhoOuIndice[i]))) return i;
   }
   return -1;
 }
 
+// -------------------------------------------------------------------
+// Conjuntos pré-normalizados
+// -------------------------------------------------------------------
+// As listas de configuração são fixas, mas antes eram normalizadas a cada
+// consulta: com 51 abas na planilha, isso dava ~870 normalizações repetidas
+// das mesmas constantes por execução. Normalizando uma única vez na carga do
+// script, a verificação vira O(1) por consulta.
+//
+// Set em vez de Array: `has()` é O(1), contra O(k) do indexOf().
+
+/** @type {Set<string>} */
+var _ABAS_ESTRUTURA_NORM = new Set(ABAS_ESTRUTURA.map(normalizarTexto));
+
+/** @type {Set<string>} */
+var _ABAS_SEM_PAGINA_NORM = new Set(ABAS_SEM_PAGINA_NO_SITE.map(normalizarTexto));
+
+/** @type {Set<string>} */
+var _STATUS_PENDENTES_NORM = new Set(STATUS_PENDENTES.map(normalizarTexto));
+
+/** @type {Set<string>} */
+var _IDENTIFICADORES = new Set(COLUNAS_IDENTIFICADOR.map(normalizarTexto));
+
 /** True se a aba é de estrutura/apoio e não deve ser tratada como aba de dados. */
 function ehAbaDeEstrutura(nomeAba) {
-  var normalizado = normalizarTexto(nomeAba);
-  for (var i = 0; i < ABAS_ESTRUTURA.length; i++) {
-    if (normalizarTexto(ABAS_ESTRUTURA[i]) === normalizado) return true;
-  }
-  return false;
+  return _ABAS_ESTRUTURA_NORM.has(normalizarTexto(nomeAba));
 }
 
 /** True se a aba ainda não tem página no site e portanto não deve ser publicada. */
 function ehAbaSemPaginaNoSite(nomeAba) {
-  var normalizado = normalizarTexto(nomeAba);
-  for (var i = 0; i < ABAS_SEM_PAGINA_NO_SITE.length; i++) {
-    if (normalizarTexto(ABAS_SEM_PAGINA_NO_SITE[i]) === normalizado) return true;
+  return _ABAS_SEM_PAGINA_NORM.has(normalizarTexto(nomeAba));
+}
+
+/** True se o valor de STATUS indica que a aba precisa ser republicada. */
+function ehStatusPendente(valor) {
+  return _STATUS_PENDENTES_NORM.has(normalizarTexto(valor));
+}
+
+/**
+ * Converte número de coluna em letra de planilha (1 -> A, 26 -> Z, 27 -> AA).
+ *
+ * Necessário para montar endereços no formato aceito por getRangeList(), que
+ * recebe notação A1 e não índices numéricos.
+ */
+function colunaParaLetra(numero) {
+  var letra = '';
+  while (numero > 0) {
+    var resto = (numero - 1) % 26;
+    letra = String.fromCharCode(65 + resto) + letra;
+    numero = Math.floor((numero - 1) / 26);
   }
-  return false;
+  return letra;
 }
 
 
@@ -178,9 +292,11 @@ function checarAbasComStatus() {
       return;
     }
 
+    // Busca em Set (O(1)) no lugar de indexOf em Array (O(k)), e a saída
+    // antecipada evita varrer o resto da aba assim que a primeira pendência
+    // aparece: no melhor caso, 1 linha em vez de todas.
     for (var i = 1; i < dados.length; i++) {
-      var valorStatus = normalizarTexto(dados[i][indiceStatus]);
-      if (STATUS_PENDENTES.indexOf(valorStatus) !== -1) {
+      if (ehStatusPendente(dados[i][indiceStatus])) {
         abasComStatus.push(nomeAba);
         return;  // basta uma linha pendente para a aba entrar na lista
       }
@@ -277,9 +393,13 @@ function padronizarAbas() {
 
     var cabecalho = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
 
+    // Um índice construído em uma passada O(C) responde as 9 buscas seguintes
+    // em O(1) cada, no lugar de 9 varreduras completas do cabeçalho.
+    var indiceCabecalho = indexarCabecalho(cabecalho);
+
     // --- Formatação por coluna ---
     formatos.forEach(function (formato) {
-      var idx = acharColuna(cabecalho, formato.nome);
+      var idx = acharColuna(indiceCabecalho, formato.nome);
       if (idx === -1) return;
 
       var range = sheet.getRange(2, idx + 1, lastRow - 1, 1);
@@ -289,23 +409,34 @@ function padronizarAbas() {
     });
 
     // --- Dropdown de STATUS nas linhas sem organização preenchida ---
-    var idxNome = acharColunaIdentificador(cabecalho);
-    var idxStatus = acharColuna(cabecalho, 'STATUS');
+    var idxNome = acharColunaIdentificador(indiceCabecalho);
+    var idxStatus = acharColuna(indiceCabecalho, 'STATUS');
     if (idxNome === -1 || idxStatus === -1) return;
 
     var nomeVals = sheet.getRange(2, idxNome + 1, lastRow - 1, 1).getValues();
 
-    // Escrita apenas nas células que precisam mudar (linhas sem organização
-    // preenchida). Uma escrita em bloco na coluna inteira seria mais rápida,
-    // mas reescreveria também as linhas já preenchidas — risco desnecessário
-    // em dados de produção.
+    // Coleta os endereços das células a alterar — só as linhas em que a
+    // organização está em branco.
+    var letraStatus = colunaParaLetra(idxStatus + 1);
+    var celulasVazias = [];
     for (var i = 0; i < nomeVals.length; i++) {
       if (String(nomeVals[i][0]).trim() === '') {
-        var celulaStatus = sheet.getRange(2 + i, idxStatus + 1);
-        celulaStatus.setDataValidation(statusValidation);
-        celulaStatus.setValue('');
+        celulasVazias.push(letraStatus + (2 + i));
       }
     }
+
+    if (celulasVazias.length === 0) return;
+
+    // Uma chamada à API para todas essas células, via RangeList, no lugar de
+    // duas chamadas POR LINHA. O conjunto de células afetadas é exatamente o
+    // mesmo do laço célula a célula: as linhas já preenchidas continuam
+    // intocadas — o ganho vem de agrupar as chamadas, não de ampliar o
+    // alcance da escrita.
+    //
+    // Numa aba com 600 linhas vazias, isso troca 1.200 chamadas por 2.
+    var listaCelulas = sheet.getRangeList(celulasVazias);
+    listaCelulas.setDataValidation(statusValidation);
+    listaCelulas.setValue('');
   });
 
   SpreadsheetApp.getActive().toast('✅ Formatação padronizada.');
@@ -355,13 +486,15 @@ function checarLinksErros() {
       if (valores.length < 2) return;
 
       var headers = valores.shift();
-      var idxLink = acharColuna(headers, 'LINK');
+      var indiceCabecalho = indexarCabecalho(headers);
+
+      var idxLink = acharColuna(indiceCabecalho, 'LINK');
       if (idxLink === -1) return;
 
       // Antes eram quatro indexOf() encadeados tentando adivinhar a grafia
       // ('NOME', 'ORGANIZAÇÃO', 'ORGANIZACAO', 'Organização'). A busca
       // normalizada cobre todas as variações de uma vez.
-      var idxNome = acharColunaIdentificador(headers);
+      var idxNome = acharColunaIdentificador(indiceCabecalho);
 
       valores.forEach(function (linha) {
         var link = linha[idxLink];
@@ -525,13 +658,14 @@ function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink)
   }
 
   var headers = abaOrigem.getRange(1, 1, 1, abaOrigem.getLastColumn()).getValues()[0];
+  var indiceCabecalho = indexarCabecalho(headers);
 
   // CORRIGIDO: antes usava headers.indexOf('NOME') exato. Nas abas que usam
   // ORGANIZAÇÃO (Aceleradoras, Hubs, Parques, Institutos, Inovação nas
   // Universidades) a função saía sem fazer nada, sem avisar o usuário.
-  var idxNome = acharColunaIdentificador(headers);
-  var idxLink = acharColuna(headers, 'LINK');
-  var idxStatus = acharColuna(headers, 'STATUS');
+  var idxNome = acharColunaIdentificador(indiceCabecalho);
+  var idxLink = acharColuna(indiceCabecalho, 'LINK');
+  var idxStatus = acharColuna(indiceCabecalho, 'STATUS');
 
   if (idxNome === -1 || idxLink === -1 || idxStatus === -1) {
     throw new Error(
@@ -548,30 +682,45 @@ function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink)
   // CORRIGIDO: a leitura anterior era getRange(2, idxNome, n, 2), que presumia
   // LINK imediatamente após NOME. Quando não era o caso, comparava a coluna
   // errada. Agora nome e link são lidos por índice próprio.
-  var nomes = abaOrigem.getRange(2, idxNome + 1, ultimaLinha - 1, 1).getValues();
-  var links = abaOrigem.getRange(2, idxLink + 1, ultimaLinha - 1, 1).getValues();
+  //
+  // Uma única leitura do bloco que cobre as duas colunas, em vez de duas
+  // chamadas à API. Ler um intervalo contíguo custa praticamente o mesmo que
+  // ler uma coluna só — o caro é a ida e volta, não o volume.
+  var colInicio = Math.min(idxNome, idxLink) + 1;
+  var colFim = Math.max(idxNome, idxLink) + 1;
+  var bloco = abaOrigem
+    .getRange(2, colInicio, ultimaLinha - 1, colFim - colInicio + 1)
+    .getValues();
 
-  // Casa por nome E link. Só pelo nome, organizações homônimas faziam a edição
-  // cair na linha errada.
+  // Posição de cada coluna dentro do bloco lido.
+  var posNome = idxNome + 1 - colInicio;
+  var posLink = idxLink + 1 - colInicio;
+
+  var nomeAlvo = String(nomeOrg).trim();
+  var linkAlvo = String(linkAtual).trim();
+
+  // Uma passada só: registra a primeira linha que casa por nome+link (ideal) e,
+  // em paralelo, a primeira que casa apenas por nome (reserva). Antes eram duas
+  // varreduras completas do array quando o casamento exato falhava.
   var linhaOrigem = null;
-  for (var i = 0; i < nomes.length; i++) {
-    if (String(nomes[i][0]).trim() === String(nomeOrg).trim() &&
-        String(links[i][0]).trim() === String(linkAtual).trim()) {
+  var linhaSomenteNome = null;
+
+  for (var i = 0; i < bloco.length; i++) {
+    if (String(bloco[i][posNome]).trim() !== nomeAlvo) continue;
+
+    // Casa por nome E link: só pelo nome, organizações homônimas faziam a
+    // edição cair na linha errada.
+    if (String(bloco[i][posLink]).trim() === linkAlvo) {
       linhaOrigem = i + 2;
       break;
     }
+
+    if (linhaSomenteNome === null) linhaSomenteNome = i + 2;
   }
 
   // Sem o link correspondente, aceita só o nome — o link pode ter sido
   // alterado na planilha depois que a checagem rodou.
-  if (linhaOrigem === null) {
-    for (var j = 0; j < nomes.length; j++) {
-      if (String(nomes[j][0]).trim() === String(nomeOrg).trim()) {
-        linhaOrigem = j + 2;
-        break;
-      }
-    }
-  }
+  if (linhaOrigem === null) linhaOrigem = linhaSomenteNome;
 
   if (linhaOrigem === null) {
     throw new Error(
