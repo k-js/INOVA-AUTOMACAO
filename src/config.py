@@ -116,12 +116,28 @@ ABAS_IGNORADAS = {
     "AGTECHS",
     "BEAUTYTECHS",
     "EVENTECHS",
-    "FASHIONTECHS",
-    "GAMETECHS",
-    "INSURTECHS",
     "PORTAIS DE NOTÍCIAS",
     "SECURITYTECHS",
     "SPORTECHS",
+}
+
+# Abas em preparação: saíram de ABAS_IGNORADAS para serem varridas pelo Apps
+# Script, mas as páginas ainda não existem no site — verificado na API do
+# WordPress em 30/07/2026: /gametechs/, /insurtechs/, /traveltechs/ e
+# /fashiontechs/ retornam vazio.
+#
+# Enquanto estiverem aqui, o validador avisa (sem tratar como erro) e a
+# publicação reporta "Link não mapeado" caso alguma seja marcada em
+# CHECAR ABAS.
+#
+# Ao criar cada página no WordPress (com o marcador
+# <!-- COMECA ATUALIZAR DAQUI -->), mova a aba daqui para ABAS_LINKS com a URL
+# real. Confira o slug: ele nem sempre segue o nome da aba — DEEPTECHS aponta
+# para /biotechs/ e RETAILTECHS para /retailtechs-2/.
+ABAS_AGUARDANDO_PAGINA = {
+    "FASHIONTECHS",
+    "GAMETECHS",
+    "INSURTECHS",
     "TRAVELTECHS",
 }
 

@@ -77,9 +77,9 @@
 
     <div class="erro" id="areaErro" role="alert"></div>
 
-    <!-- Campo embutido no lugar de prompt(): o prompt() do navegador é
-         bloqueado em alguns contextos de diálogo do Apps Script, e ali não dá
-         para validar a entrada nem mostrar o link antigo lado a lado. -->
+    <!-- Campo embutido em vez de prompt(): o prompt() do navegador é bloqueado
+         em alguns contextos de diálogo do Apps Script, e não permite validar a
+         entrada nem exibir o link atual junto. -->
     <div class="campo" id="campoNovoLink">
       <label for="novoLink">Novo link (começando com http:// ou https://):</label>
       <input type="url" id="novoLink" placeholder="https://exemplo.com.br">
@@ -92,24 +92,16 @@
     </div>
 
     <script>
-      // Os dados chegam do servidor como um literal JSON já pronto, montado
-      // com JSON.stringify na tag de saída não-escapada logo abaixo.
+      // Os dados chegam do servidor como um único literal JSON.
       //
-      // CORRIGIDO: antes cada campo era interpolado individualmente dentro de
-      // aspas, com a tag de saída escapada. Essa tag escapa para contexto
-      // HTML, mas NÃO para dentro de uma string JavaScript. Uma organização
-      // com aspas no nome — a planilha tem 'Incubadora de Empresas "Arcângelo
-      // Nigro"' — encerrava a string no meio e quebrava o script inteiro: o
-      // diálogo abria sem funcionar, sem erro visível. Nomes com quebra de
-      // linha ('Tim Ransley Alimentos') faziam o mesmo.
+      // Interpolar campo a campo dentro de aspas não serve: a tag de saída
+      // escapa para contexto HTML, não para dentro de string JavaScript. Um
+      // nome com aspas — a planilha tem 'Incubadora de Empresas "Arcângelo
+      // Nigro"' — encerraria a string no meio e quebraria o script inteiro.
       //
-      // JSON.stringify no servidor produz um literal sempre válido, qualquer
-      // que seja o conteúdo vindo da planilha.
-      // O replace de '/' é necessário além do JSON.stringify: um valor da
-      // planilha contendo a sequência de fechamento de script encerraria este
-      // bloco antes da hora, e o resto do código viraria conteúdo da página.
-      // Escapar a barra produz um literal equivalente que o parser de HTML não
-      // reconhece como fechamento de tag.
+      // O escape de '/' cobre o outro caso: um valor contendo a sequência de
+      // fechamento de script encerraria este bloco antes da hora, e o resto do
+      // código viraria conteúdo da página.
       var dados = <?!= JSON.stringify({
         linha: linha,
         linkAtual: String(linkAtual),
@@ -159,8 +151,8 @@
             google.script.host.close();
           })
           // Sem este handler, um erro lançado por processarAcao (aba sem a
-          // coluna esperada, organização não encontrada) não aparecia em lugar
-          // nenhum: o diálogo ficava aberto e parecia travado.
+          // coluna esperada, organização não encontrada) não chega a lugar
+          // nenhum e o diálogo fica aberto, parecendo travado.
           .withFailureHandler(function (erro) {
             areaAcoes.classList.remove('ocupado');
             mostrarErro('Não foi possível concluir:\n\n' + erro.message);

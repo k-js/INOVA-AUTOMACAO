@@ -16,9 +16,8 @@
 // =====================================================================
 // Configuração — nomes de abas e colunas
 // =====================================================================
-// Mantidos em um só lugar. Antes as listas de abas estavam espalhadas por
-// várias funções, cada uma com um conteúdo diferente e desatualizada de um
-// jeito distinto.
+// Todas as listas de abas ficam aqui, e não espalhadas pelas funções, para
+// que não divirjam entre si.
 
 /**
  * Abas de estrutura/apoio e rascunhos: nunca contêm organizações a publicar.
@@ -51,13 +50,17 @@ var ABAS_SEM_PAGINA_NO_SITE = [
   'AGTECHS',              ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
   'BEAUTYTECHS',          ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
   'EVENTECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'FASHIONTECHS',         ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'GAMETECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'INSURTECHS',           ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
   'PORTAIS DE NOTÍCIAS',  ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
   'SECURITYTECHS',        ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'SPORTECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'TRAVELTECHS'           ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  'SPORTECHS'             ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  // FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS saíram desta lista:
+  // passam a ser varridas por checarAbasComStatus e aparecem em "CHECAR ABAS"
+  // quando tiverem STATUS pendente.
+  //
+  // ⚠️ As páginas dessas 4 ainda NÃO existem no site (verificado na API do
+  // WordPress). Enquanto não forem criadas, a publicação vai reportar
+  // "Link não mapeado" para elas. Ao criar cada página, adicione a URL em
+  // ABAS_LINKS no src/config.py e tire o nome de ABAS_IGNORADAS.
 ];
 
 /**
@@ -262,10 +265,9 @@ function acharColunaIdentificador(cabecalhoOuIndice) {
 // -------------------------------------------------------------------
 // Conjuntos pré-normalizados
 // -------------------------------------------------------------------
-// As listas de configuração são fixas, mas antes eram normalizadas a cada
-// consulta: com 51 abas na planilha, isso dava ~870 normalizações repetidas
-// das mesmas constantes por execução. Normalizando uma única vez na carga do
-// script, a verificação vira O(1) por consulta.
+// As listas de configuração são fixas, então são normalizadas uma única vez na
+// carga do script, e não a cada consulta — com 51 abas na planilha, isso
+// pouparia ~870 normalizações repetidas por execução.
 //
 // Set em vez de Array: `has()` é O(1), contra O(k) do indexOf().
 
@@ -365,9 +367,9 @@ function checarAbasComStatus() {
     var dados = aba.getDataRange().getValues();
     if (dados.length < 2) return;  // só cabeçalho, ou vazia
 
-    // Busca tolerante: antes usava indexOf('STATUS') exato, então um espaço a
-    // mais no cabeçalho fazia a aba ser pulada sem aviso — e ela deixava de
-    // ser publicada sem ninguém perceber.
+    // Busca tolerante a acento e espaço: com indexOf() exato, um espaço a mais
+    // no cabeçalho faria a aba ser pulada sem aviso, e ela deixaria de ser
+    // publicada sem ninguém perceber.
     var indiceStatus = acharColuna(dados[0], 'STATUS');
     if (indiceStatus === -1) {
       abasSemColunaStatus.push(nomeAba);
@@ -394,8 +396,8 @@ function checarAbasComStatus() {
       .setValues(abasComStatus.map(function (nome) { return [nome]; }));
   }
 
-  // Relatório visível: antes a função terminava calada, e não havia como saber
-  // se "nenhuma aba listada" significava nada pendente ou algo quebrado.
+  // Relatório visível ao final: sem ele, "nenhuma aba listada" seria
+  // ambíguo entre nada pendente e algo quebrado.
   var mensagem = abasComStatus.length > 0
     ? '✅ ' + abasComStatus.length + ' aba(s) com alterações pendentes.'
     : 'Nenhuma aba com alterações pendentes.';
@@ -429,13 +431,9 @@ function padronizarAbas() {
     .setAllowInvalid(false)                    // não permitir valores fora da lista
     .build();
 
-  // Largura e alinhamento por coluna. Os nomes são comparados sem acento,
-  // então 'PAIS' encontra a coluna real 'PAÍS'.
-  //
-  // CORRIGIDO: esta função definia internamente um normalizarTexto() que NÃO
-  // removia acentos, e essa versão local tinha precedência sobre a global.
-  // Resultado: 'PAIS' e 'CONTEUDO BALAO' nunca casavam com as colunas reais
-  // 'PAÍS' e 'CONTEÚDO BALÃO', que ficavam sem formatação alguma.
+  // Largura e alinhamento por coluna. Os nomes são comparados sem acento nem
+  // diferença de caixa, então 'PAIS' encontra a coluna real 'PAÍS' e
+  // 'CONTEUDO BALAO' encontra 'CONTEÚDO BALÃO'.
   var formatos = [
     { nome: 'NOME',           alinhamento: 'left',   largura: 300 },
     { nome: 'ORGANIZAÇÃO',    alinhamento: 'left',   largura: 300 },
@@ -452,10 +450,6 @@ function padronizarAbas() {
     var nomeAba = sheet.getName();
 
     // Ignorar abas específicas
-    //
-    // CORRIGIDO: estava "CHECHAR ABAS" (com CH a mais), então a aba de controle
-    // "CHECAR ABAS" nunca era pulada e acabava sendo formatada como se fosse
-    // uma aba de dados.
     if (ehAbaDeEstrutura(nomeAba)) return;
 
     var lastRow = sheet.getLastRow();
@@ -511,8 +505,8 @@ function padronizarAbas() {
 
     var nomeVals = sheet.getRange(2, idxNome + 1, lastRow - 1, 1).getValues();
 
-    // Coleta os endereços das células a alterar — só as linhas em que a
-    // organização está em branco.
+    // Endereços das células a alterar: só as linhas em que a organização
+    // está em branco.
     var letraStatus = colunaParaLetra(idxStatus + 1);
     var celulasVazias = [];
     for (var i = 0; i < nomeVals.length; i++) {
@@ -526,13 +520,13 @@ function padronizarAbas() {
     // Aplica a validação nas células STATUS correspondentes e limpa o valor
     // atual, deixando-as em branco.
 
-    // Uma chamada à API para todas essas células, via RangeList, no lugar de
-    // duas chamadas POR LINHA. O conjunto de células afetadas é exatamente o
-    // mesmo do laço célula a célula: as linhas já preenchidas continuam
-    // intocadas — o ganho vem de agrupar as chamadas, não de ampliar o
-    // alcance da escrita.
+    // RangeList aplica a operação a todas essas células em uma única chamada à
+    // API, em vez de duas por linha — numa aba com 600 linhas vazias, 1.200
+    // chamadas viram 2.
     //
-    // Numa aba com 600 linhas vazias, isso troca 1.200 chamadas por 2.
+    // Só as células listadas são afetadas: as linhas já preenchidas continuam
+    // intocadas. O ganho vem de agrupar as chamadas, não de escrever em mais
+    // células.
     var listaCelulas = sheet.getRangeList(celulasVazias);
     listaCelulas.setDataValidation(statusValidation);
     listaCelulas.setValue('');
@@ -597,9 +591,8 @@ function checarLinksErros() {
       var idxLink = acharColuna(indiceCabecalho, 'LINK');
       if (idxLink === -1) return;
 
-      // Antes eram quatro indexOf() encadeados tentando adivinhar a grafia
-      // ('NOME', 'ORGANIZAÇÃO', 'ORGANIZACAO', 'Organização'). A busca
-      // normalizada cobre todas as variações de uma vez.
+      // A busca normalizada cobre de uma vez todas as grafias possíveis
+      // ('NOME', 'ORGANIZAÇÃO', 'ORGANIZACAO', 'Organização').
       var idxNome = acharColunaIdentificador(indiceCabecalho);
 
       // Varre as linhas de dados restantes
@@ -689,8 +682,8 @@ function checarLinksErros() {
     );
   } catch (err) {
     // O limite por propriedade é de 9 KB; com muitos links o JSON estoura.
-    // Antes o erro era silencioso e a checagem recomeçava do zero a cada
-    // execução, sem nunca terminar.
+    // Sem interromper aqui, a checagem recomeçaria do zero a cada execução,
+    // sem nunca terminar.
     props.deleteProperty('todosLinks');
     props.deleteProperty('ultimaPos');
     SpreadsheetApp.getUi().alert(
@@ -809,9 +802,8 @@ function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink)
   var headers = abaOrigem.getRange(1, 1, 1, abaOrigem.getLastColumn()).getValues()[0];
   var indiceCabecalho = indexarCabecalho(headers);
 
-  // CORRIGIDO: antes usava headers.indexOf('NOME') exato. Nas abas que usam
-  // ORGANIZAÇÃO (Aceleradoras, Hubs, Parques, Institutos, Inovação nas
-  // Universidades) a função saía sem fazer nada, sem avisar o usuário.
+  // Busca que aceita NOME ou ORGANIZAÇÃO: as abas Aceleradoras, Hubs, Parques,
+  // Institutos e Inovação nas Universidades usam ORGANIZAÇÃO.
   var idxNome = acharColunaIdentificador(indiceCabecalho);
   var idxLink = acharColuna(indiceCabecalho, 'LINK');
   var idxStatus = acharColuna(indiceCabecalho, 'STATUS');
@@ -828,9 +820,8 @@ function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink)
     throw new Error('A aba "' + nomeAbaOrigem + '" não tem dados.');
   }
 
-  // CORRIGIDO: a leitura anterior era getRange(2, idxNome, n, 2), que presumia
-  // LINK imediatamente após NOME. Quando não era o caso, comparava a coluna
-  // errada. Agora nome e link são lidos por índice próprio.
+  // Nome e link são localizados por índice próprio, sem presumir que LINK vem
+  // logo depois de NOME.
   //
   // Uma única leitura do bloco que cobre as duas colunas, em vez de duas
   // chamadas à API. Ler um intervalo contíguo custa praticamente o mesmo que
@@ -849,8 +840,7 @@ function processarAcao(linha, linkAtual, nomeOrg, nomeAbaOrigem, acao, novoLink)
   var linkAlvo = String(linkAtual).trim();
 
   // Uma passada só: registra a primeira linha que casa por nome+link (ideal) e,
-  // em paralelo, a primeira que casa apenas por nome (reserva). Antes eram duas
-  // varreduras completas do array quando o casamento exato falhava.
+  // na mesma varredura, a primeira que casa apenas por nome (reserva).
   var linhaOrigem = null;
   var linhaSomenteNome = null;
 

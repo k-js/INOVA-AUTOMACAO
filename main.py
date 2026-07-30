@@ -23,6 +23,7 @@ from atualizador_WP import atualizar_pagina_wp
 from pitchs import gerar_html_pitchs_via_api
 from criaHTMLPais import gerar_html_pais
 from criarHTML_3col import gerar_html_3COL
+import config
 
 # =========================================
 # Configuração e Autenticação
@@ -103,72 +104,26 @@ except Exception as e:
     raise Exception(f"❌ Erro ao ler abas selecionadas: {e}")
 
 # =========================================
-# Mapeamento de Links (mantido igual)
+# Mapeamento de Links
 # =========================================
-abas_links = {
-    "DEEPTECHS": "https://inova.ufpr.br/biotechs/",
-    "CONSTRUTECHS E PROPTECHS": "https://inova.ufpr.br/construtechs-e-proptechs/",
-    "EDTECHS": "https://inova.ufpr.br/edtechs/",
-    "ENERGYTECHS": "https://inova.ufpr.br/energytechs/",
-    "FINTECHS": "https://inova.ufpr.br/fintechs/",
-    "FOODTECHS": "https://inova.ufpr.br/foodtechs/",
-    "GOVTECHS": "https://inova.ufpr.br/govtechs/",
-    "GREENTECHS": "https://inova.ufpr.br/greentechs/",
-    "HEALTHTECHS": "https://inova.ufpr.br/health-tech/",
-    "INDTECHS": "https://inova.ufpr.br/indtechs/",
-    "LOGTECHS": "https://inova.ufpr.br/logtechs/",
-    "MARTECHS": "https://inova.ufpr.br/martechs/",
-    "MOBITECHS": "https://inova.ufpr.br/mobitechs/",
-    "MANAGETECHS": "https://ufpr.br/managetechs/",
-    "RETAILTECHS": "https://inova.ufpr.br/retailtechs-2/",
-    "SOCIALTECHS": "https://inova.ufpr.br/socialtechs/",
-    "TECHS": "https://inova.ufpr.br/techs/",
-    "WATERTECHS": "https://inova.ufpr.br/watertechs/",
-    "LAWTECHS E LEGALTECHS": "https://inova.ufpr.br/lawtechs-e-legaltechs/",
-    "PETTECHS": "https://inova.ufpr.br/pet-techs/",
-    "TESTE": "https://inova.ufpr.br/teste/",
-    "ACELERADORAS E INCUBADORAS": "https://inova.ufpr.br/aceleradoras-incubadoras/",
-    "ASSOCIAÇÕES EMPRESARIAIS": "https://inova.ufpr.br/associacao-empresarial/",
-    "FINANCIAMENTO A INOVAÇÃO": "https://inova.ufpr.br/financiamento-inovacao/",
-    "HUBS E ECOSSISTEMAS": "https://inova.ufpr.br/hubs-e-ecossistemas/",
-    "INOVAÇÃO NAS UNIVERSIDADES": "https://inova.ufpr.br/inovacao-nas-universidades/",
-    # NOME DA ABA ATUALIZADO: antes era "INSTITUTOS E CENTROS DE PESQUISA",
-    # agora a aba na planilha se chama "INSTITUTOS DE PESQUISA E CENTROS DE T&I".
-    # Se essa chave não bater EXATAMENTE com o nome da aba na planilha Google e com o
-    # valor da coluna ABA em links_startups.xlsx, a atualização falha com "Link não mapeado".
-    # Rode `python validar.py` para conferir isso automaticamente.
-    "INSTITUTOS DE PESQUISA E CENTROS DE T&I": "https://inova.ufpr.br/institutos-de-pesquisa/",
-    "PARQUES CIENTÍFICOS": "https://inova.ufpr.br/parques-tecnologicos/",
-    "PERÍODICOS CIENTÍFICOS": "https://inova.ufpr.br/periodicos-cientificos/",
-    "POLÍTICAS DE INOVAÇÃO": "https://inova.ufpr.br/politicas-de-inovacao/",
-    "PROPRIEDADE INTELECTUAL": "https://inova.ufpr.br/1234-2/",
-    "VÍDEOS E PODCASTS": "https://inova.ufpr.br/cursos-e-podcasts-de-empreendedorismo/",
-    "PITCHS DE STARTUPS": "https://inova.ufpr.br/pitchs-de-startups-incubadoras-e-aceleradoras/",
-    "HRTECHS": "https://inova.ufpr.br/hrtechs/"
-}
+# Fonte única: src/config.py. Antes este dicionário era repetido aqui e no
+# config.py, e o de src/config.py alimentava validar.py e interface.py. Editar
+# um e esquecer o outro fazia a publicação divergir da validação — a origem dos
+# erros de "Link não mapeado".
+abas_links = config.ABAS_LINKS
 
-abas_pais = [
-    "ASSOCIAÇÕES EMPRESARIAIS",
-    "FINANCIAMENTO A INOVAÇÃO",
-    "HUBS E ECOSSISTEMAS",
-    # CORRIGIDO: nome não batia nem com o antigo nome da aba ("INSTITUTOS E CENTROS DE
-    # PESQUISA", usado em abas_links) nem com o novo ("INSTITUTOS DE PESQUISA E CENTROS
-    # DE T&I"). Por isso essa aba nunca era roteada para gerar_html_pais.
-    "INSTITUTOS DE PESQUISA E CENTROS DE T&I",
-    "POLÍTICAS DE INOVAÇÃO",
-    "PROPRIEDADE INTELECTUAL",
-    "TESTE"
-]
+# Abas cuja coluna geográfica é PAÍS (e não CIDADE) — vem do config.py.
+abas_pais = config.ABAS_PAIS
 
 # Abas que não têm relação com Estado/Cidade/País (ex.: periódicos científicos,
 # propriedade intelectual, políticas de inovação são temas nacionais/institucionais,
 # não organizações localizáveis por UF/país). Para essas abas o filtro de
 # Estado/Cidade/País é removido inteiramente do HTML gerado.
-ABAS_SEM_GEOGRAFIA = [
-    "PERIÓDICOS CIENTÍFICOS",
-    "PROPRIEDADE INTELECTUAL",
-    "POLÍTICAS DE INOVAÇÃO",
-]
+#
+# CORRIGIDO: a lista local trazia "PERIÓDICOS CIENTÍFICOS" (acento no O), mas a
+# aba na planilha se chama "PERÍODICOS CIENTÍFICOS" (acento no I). A comparação
+# nunca batia, então o filtro geográfico continuava aparecendo nessa aba.
+ABAS_SEM_GEOGRAFIA = config.ABAS_SEM_GEOGRAFIA
 
 # =========================================
 # Processamento em Lotes (com melhor tratamento de erros)
