@@ -38,7 +38,23 @@ jobs:
           GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
         run: python validar.py
 
-      # 5️⃣ Publicar
+      # 5️⃣ Salvar o conteúdo atual das páginas ANTES de reescrevê-las
+      #
+      # A publicação substitui, em cada página, tudo entre o marcador
+      # COMECA ATUALIZAR DAQUI e o </table> seguinte. Se o HTML gerado sair
+      # errado, o conteúdo anterior se perde — e são páginas publicadas.
+      #
+      # Salva só as abas listadas em CHECAR ABAS: as que serão reescritas.
+      - name: Backup das páginas
+        continue-on-error: true
+        env:
+          GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
+          GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          WP_USER: ${{ secrets.WP_USER }}
+        run: python backup_paginas.py
+
+      # 6️⃣ Publicar
       - name: Run script
         env:
           GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
@@ -47,3 +63,16 @@ jobs:
           WP_USER: ${{ secrets.WP_USER }}
           WP_URL: ${{ secrets.WP_URL }}
         run: python main.py
+
+      # 7️⃣ Publicar o backup como artefato, para download
+      #
+      # always(): o backup precisa ficar disponível MESMO se a publicação
+      # falhar — é justamente nesse caso que ele serve para reverter.
+      - name: Guardar backup
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-paginas-${{ github.run_number }}
+          path: backups/
+          if-no-files-found: warn
+          retention-days: 90
