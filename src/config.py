@@ -132,13 +132,13 @@ ABAS_IGNORADAS = {
 # atualizador_WP.py procura a página pelo slug, e a API não retorna rascunhos
 # em busca não autenticada.
 #
-# Ao publicar a página no WordPress, tire o nome desta lista.
-ABAS_AGUARDANDO_PAGINA = {
-    "FASHIONTECHS",
-    "GAMETECHS",
-    "INSURTECHS",
-    "TRAVELTECHS",
-}
+# Para publicar pela Action:
+#   Actions → "Criar páginas no WordPress" → marcar "Publicar as páginas
+#   em rascunho"
+#
+# Vazio no momento: FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS foram
+# publicadas em 30/07/2026 e já aparecem na grade de /startups/.
+ABAS_AGUARDANDO_PAGINA = set()
 
 # =========================================================================
 # Roteamento: qual gerador de HTML usar em cada aba
