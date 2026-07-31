@@ -1,0 +1,99 @@
+name: Criar páginas no WordPress
+
+# Cria, como RASCUNHO, a página das abas que existem na planilha mas ainda não
+# têm página no site — e grava a URL em src/config.py.
+#
+# As páginas NÃO vão ao ar sozinhas: nascem em rascunho e só aparecem para o
+# público quando alguém clicar em "Publicar" no WordPress.
+#
+# Só roda quando você clica: Actions → "Criar páginas no WordPress" →
+# "Run workflow". Não tem agendamento.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Simular (não cria nada, só mostra o que faria)'
+        type: boolean
+        default: true
+      criar_paginas:
+        description: 'Criar as páginas que faltam, como rascunho'
+        type: boolean
+        default: false
+      menu_id:
+        description: 'ID do menu para inserir as páginas (vazio = não mexe no menu)'
+        type: string
+        default: ''
+      commit:
+        description: 'Fazer commit do src/config.py atualizado'
+        type: boolean
+        default: false
+
+jobs:
+  criar:
+    runs-on: ubuntu-latest
+
+    # Necessário para o passo de commit conseguir escrever no repositório.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Lista os menus do site, para você descobrir o ID a usar no campo
+      # menu_id numa execução seguinte.
+      - name: Listar menus disponíveis
+        continue-on-error: true
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
+          GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
+        run: python sincronizar_config.py --listar-menus
+
+      - name: Sincronizar e criar páginas
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
+          GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ "${{ inputs.criar_paginas }}" = "true" ]; then
+            ARGS="$ARGS --criar-paginas"
+          fi
+          if [ -n "${{ inputs.menu_id }}" ]; then
+            ARGS="$ARGS --menu-id ${{ inputs.menu_id }}"
+          fi
+          echo "Executando: python sincronizar_config.py $ARGS"
+          python sincronizar_config.py $ARGS
+
+      - name: Commit do config atualizado
+        if: ${{ inputs.commit == true && inputs.dry_run == false }}
+        run: |
+          if git diff --quiet src/config.py; then
+            echo "Nenhuma mudança em src/config.py — nada a commitar."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/config.py
+          git commit -m "Atualiza ABAS_LINKS com paginas descobertas no WordPress
+
+          Commit automatico gerado por .github/workflows/criar-paginas.yml"
+          git push
