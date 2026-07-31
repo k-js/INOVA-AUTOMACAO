@@ -169,10 +169,13 @@ ABAS_PAIS = {
 # Abas sem relação geográfica: temas nacionais/institucionais, não
 # organizações localizáveis. O filtro de Estado/Cidade/País é removido
 # inteiramente do HTML gerado para elas.
+#
+# Só entram aqui abas que NÃO têm coluna geográfica na planilha. Uma aba que
+# tem a coluna e está listada aqui perde o filtro e a coluna no site, sem
+# nenhum aviso — foi o que aconteceu com POLÍTICAS DE INOVAÇÃO (tem UF) e
+# PROPRIEDADE INTELECTUAL (tem PAÍS), que saíram desta lista.
 ABAS_SEM_GEOGRAFIA = {
     "PERÍODICOS CIENTÍFICOS",
-    "PROPRIEDADE INTELECTUAL",
-    "POLÍTICAS DE INOVAÇÃO",
 }
 
 

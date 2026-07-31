@@ -114,14 +114,27 @@ deveria voltar a ser publicada. Vale confirmar com quem cuida do conteúdo.
 
 ---
 
-## 6. Abas em `ABAS_PAIS` sem coluna de país
+## 6. Abas em `ABAS_PAIS` sem coluna de país ✅ resolvido
 
-`ASSOCIAÇÕES EMPRESARIAIS` e `POLÍTICAS DE INOVAÇÃO` estão em `ABAS_PAIS` no
-`config.py`, mas as duas têm apenas a coluna `UF` — não têm `CIDADE` nem
-`PAÍS`. O gerador de país não encontra a coluna e o filtro sai incompleto.
+`POLÍTICAS DE INOVAÇÃO` (tem `UF`) e `PROPRIEDADE INTELECTUAL` (tem `PAÍS`)
+estavam em `ABAS_SEM_GEOGRAFIA`, que remove o filtro geográfico inteiro. Por
+isso o site mostrava apenas Organização e Categoria, escondendo a coluna que
+existia na planilha.
 
-Decidir caso a caso: acrescentar a coluna `PAÍS` na planilha, ou tirar a aba
-de `ABAS_PAIS`.
+As duas saíram de `ABAS_SEM_GEOGRAFIA` em 31/07/2026. O gerador detecta a
+coluna pelo nome e exibe só a que existe, então cada uma passa a mostrar a sua:
+
+| Aba | Colunas |
+|---|---|
+| POLÍTICAS DE INOVAÇÃO | Organização · UF · Categoria |
+| PROPRIEDADE INTELECTUAL | Organização · PAÍS · Categoria |
+
+`ASSOCIAÇÕES EMPRESARIAIS` continua em `ABAS_PAIS` tendo apenas `UF` — o que
+funciona: o gerador mostra a coluna UF e omite a de país. Não é problema, só
+um nome de lista que não descreve bem o caso.
+
+`PERÍODICOS CIENTÍFICOS` segue sem geografia por decisão de conteúdo, embora
+tenha a coluna `PAÍS` na planilha. Confirmar se é intencional.
 
 ---
 
