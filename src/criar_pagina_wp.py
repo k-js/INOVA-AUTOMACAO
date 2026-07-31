@@ -35,9 +35,7 @@ CABECALHOS = {
 # substitui tudo entre ele e o </table> seguinte. Sem o marcador, a publicação
 # falha com "não foi encontrado o marcador".
 CONTEUDO_INICIAL = """<!-- COMECA ATUALIZAR DAQUI -->
-<div class="p-2 mr-2" id="count">
-<p><b>Total de organizações:</b> 0</p>
-</div>
+<div class="p-2 mr-2" id="count"><p><b>Total de organizações:</b> 0</p></div>
 <table class="table" id="organization_table">
 <thead>
 <tr><th scope="col"><p>Organização</p></th></tr>

@@ -318,13 +318,13 @@ def gerar_html_pais(aba,
                 attrs_extra += f' data-{data_attr}="{valor_geo}"'
                 tds_extra += f'<td>{valor_geo}</td>\n'
 
+            # A célula do nome fica em UMA linha, sem quebras entre <span>, <a>
+            # e </span>: o wpautop do WordPress converte quebras de linha em
+            # <br />, e cada um deles empurra o nome para baixo, desalinhando a
+            # coluna em relação às demais.
             html += f"""
 <tr class="organizationRow"{attrs_extra} data-categoria="{categoria}">
-<td scope="row">
-<span data-bs-placement="bottom" data-bs-toggle="tooltip" title="{conteudo_balao}">
-<a href="{link}" rel="noopener noreferrer" target="_blank">{nome}</a>
-</span>
-</td>
+<td scope="row"><span data-bs-placement="bottom" data-bs-toggle="tooltip" title="{conteudo_balao}"><a href="{link}" rel="noopener noreferrer" target="_blank">{nome}</a></span></td>
 {tds_extra}<td>{categoria}</td>
 </tr>
 """

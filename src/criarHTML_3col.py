@@ -190,13 +190,12 @@ def gerar_html_3COL(
         categoria = row.get('CATEGORIA', '').strip()
         conteudo_balao = row.get('CONTEÚDO BALÃO', '').strip()
 
+        # A célula do nome fica em UMA linha, sem quebras entre <span>, <a> e
+        # </span>: o wpautop do WordPress converte quebras de linha em <br />,
+        # e cada um deles empurra o nome para baixo, desalinhando a coluna.
         html += f"""
 <tr class="organizationRow" data-{data_attr}="{pais}" data-categoria="{categoria}">
-<td scope="row">
-<span data-bs-placement="bottom" data-bs-toggle="tooltip" title="{conteudo_balao}">
-<a href="{link}" rel="noopener noreferrer" target="_blank">{nome}</a>
-</span>
-</td>
+<td scope="row"><span data-bs-placement="bottom" data-bs-toggle="tooltip" title="{conteudo_balao}"><a href="{link}" rel="noopener noreferrer" target="_blank">{nome}</a></span></td>
 <td>{pais}</td>
 <td>{categoria}</td>
 </tr>
