@@ -149,6 +149,51 @@ def criar_pagina(nome_aba, dry_run=False):
     return f"{SITE}/{slug}/", f"criada como RASCUNHO (id {dados.get('id')})"
 
 
+def publicar_pagina(nome_aba, dry_run=False):
+    """
+    Passa a página da aba de rascunho para publicada.
+
+    Só age sobre páginas em rascunho: uma página já publicada não é tocada, e
+    outros status (privada, pendente, lixeira) são recusados para que a
+    automação não desfaça uma decisão editorial sem querer.
+
+    Retorna (url, mensagem). url é None se nada foi publicado.
+    """
+    slug = gerar_slug(nome_aba)
+    pagina = buscar_pagina_por_slug(slug)
+
+    if not pagina:
+        return None, "página não encontrada"
+
+    status = pagina.get("status")
+
+    if status == "publish":
+        return f"{SITE}/{slug}/", "já estava publicada"
+
+    if status != "draft":
+        return None, (f"status é '{status}', não 'draft' — não vou mexer. "
+                      f"Publique manualmente se for o caso.")
+
+    if dry_run:
+        return f"{SITE}/{slug}/", "seria publicada (--dry-run)"
+
+    resposta = requests.post(
+        f"{API}/pages/{pagina['id']}",
+        auth=_credenciais(),
+        headers=CABECALHOS,
+        json={"status": "publish"},
+        timeout=30,
+    )
+
+    if resposta.status_code != 200:
+        raise RuntimeError(
+            f"falha ao publicar '{nome_aba}' (HTTP {resposta.status_code}): "
+            f"{resposta.text[:200]}"
+        )
+
+    return f"{SITE}/{slug}/", f"PUBLICADA (id {pagina['id']})"
+
+
 # ---------------------------------------------------------------------
 # Menu de navegação
 # ---------------------------------------------------------------------

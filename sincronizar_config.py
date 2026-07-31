@@ -184,6 +184,10 @@ def main():
     parser.add_argument("--criar-paginas", action="store_true",
                         help="cria no WordPress, como RASCUNHO, a página das "
                              "abas que ainda não têm uma")
+    parser.add_argument("--publicar", metavar="ABA", nargs="+", default=None,
+                        help="publica as páginas destas abas (só age sobre "
+                             "páginas em rascunho). Use ABAS_AGUARDANDO_PAGINA "
+                             "para publicar todas as que estão aguardando")
     parser.add_argument("--menu-id", type=int, default=None,
                         help="id do menu onde inserir as páginas criadas "
                              "(use --listar-menus para descobrir)")
@@ -201,6 +205,40 @@ def main():
         for m in menus:
             print(f"   id {m.get('id'):>4}   {m.get('name')}")
         print("\nUse: python sincronizar_config.py --criar-paginas --menu-id <id>")
+        return
+
+    if args.publicar is not None:
+        # Atalho: publicar todas as que estão marcadas como aguardando.
+        alvos = list(args.publicar)
+        if len(alvos) == 1 and alvos[0].upper() == "ABAS_AGUARDANDO_PAGINA":
+            alvos = sorted(getattr(config, "ABAS_AGUARDANDO_PAGINA", set()))
+
+        if not alvos:
+            print("Nenhuma aba a publicar.")
+            return
+
+        print("=" * 64)
+        print("📤 PUBLICAÇÃO DE PÁGINAS")
+        print("=" * 64)
+        print(f"{len(alvos)} aba(s): {', '.join(alvos)}\n")
+
+        publicadas = []
+        for aba in alvos:
+            try:
+                url, situacao = criar_pagina_wp.publicar_pagina(
+                    aba, dry_run=args.dry_run
+                )
+                marca = "✓" if url else "✗"
+                print(f"   {marca} {aba}")
+                print(f"     {situacao}")
+                if url and "PUBLICADA" in situacao:
+                    publicadas.append(aba)
+            except Exception as e:
+                print(f"   ✗ {aba}: {e}")
+
+        if publicadas and not args.dry_run:
+            print(f"\n✅ {len(publicadas)} página(s) publicada(s).")
+            print("   Tire essas abas de ABAS_AGUARDANDO_PAGINA no src/config.py.")
         return
 
     print("=" * 64)

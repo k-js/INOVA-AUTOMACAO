@@ -28,6 +28,10 @@ on:
         description: 'Fazer commit do src/config.py atualizado'
         type: boolean
         default: false
+      publicar:
+        description: 'Publicar as páginas em rascunho das abas aguardando (tira do rascunho e põe no ar)'
+        type: boolean
+        default: false
       limpar_menu:
         description: 'Remover do menu os itens que apontam para páginas em rascunho'
         type: boolean
@@ -88,6 +92,23 @@ jobs:
             ARGS="$ARGS --menu-id ${{ inputs.menu_id }}"
           fi
           echo "Executando: python sincronizar_config.py $ARGS"
+          python sincronizar_config.py $ARGS
+
+      # Publica as paginas que estao em rascunho. Vem ANTES da sincronizacao
+      # de botoes: o script de botoes ignora paginas nao publicadas, entao a
+      # ordem importa para que tudo funcione numa execucao so.
+      - name: Publicar páginas em rascunho
+        if: ${{ inputs.publicar == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
+          GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
+        run: |
+          ARGS="--publicar ABAS_AGUARDANDO_PAGINA"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
           python sincronizar_config.py $ARGS
 
       # Um item de menu apontando para pagina em rascunho fica visivel no site
