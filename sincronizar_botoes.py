@@ -56,6 +56,16 @@ ABAS_ALVO = {
     "TRAVELTECHS",
 }
 
+# Correções de rótulo: {rótulo atual: rótulo correto}.
+#
+# Muda apenas o texto exibido no botão. A URL fica exatamente como está — a
+# padronização de URLs é outro assunto, com riscos próprios (ver item 3 de
+# docs/PENDENCIAS.md).
+RENOMEAR_BOTOES = {
+    # Na planilha a aba é PETTECHS, sem espaço.
+    "PET TECHS": "PETTECHS",
+}
+
 
 def pagina_publicada(url):
     """
@@ -121,6 +131,25 @@ def main():
     existentes = botoes_wp.extrair_botoes(conteudo)
     print(f"📋 {len(existentes)} botões hoje na página")
 
+    # Aplica as correções de rótulo, preservando a URL de cada botão.
+    renomeados = []
+    corrigidos = []
+    for rotulo, url in existentes:
+        novo_rotulo = RENOMEAR_BOTOES.get(rotulo.strip())
+        if novo_rotulo:
+            renomeados.append((rotulo.strip(), novo_rotulo, url))
+            corrigidos.append((novo_rotulo, url))
+        else:
+            corrigidos.append((rotulo, url))
+
+    existentes = corrigidos
+
+    if renomeados:
+        print(f"\n✏️  {len(renomeados)} rótulo(s) a corrigir:")
+        for antigo, novo, url in renomeados:
+            print(f"   {antigo}  →  {novo}")
+            print(f"     URL mantida: {url}")
+
     # Índice por nome normalizado, para casar botão com aba.
     por_nome = {botoes_wp._normalizar(r): (r, u) for r, u in existentes}
 
@@ -157,7 +186,7 @@ def main():
             print(f"   - {aba}")
         print("   Publique a página no WordPress e rode de novo.")
 
-    if not adicionados:
+    if not adicionados and not renomeados:
         print("\nNada a fazer.")
         return
 
