@@ -31,6 +31,10 @@ jobs:
       # Não bloqueia a publicação (continue-on-error): um aviso sobre uma aba
       # não mapeada não deve impedir a atualização das outras. Se este passo
       # ficar amarelo, abra o log — ele diz exatamente o que está divergente.
+      #
+      # ⚠️ A validação lê o cabeçalho de todas as abas mapeadas, o que consome
+      # boa parte das 60 leituras/minuto que a API do Sheets permite. Por isso
+      # o passo seguinte espera a cota renovar antes de publicar.
       - name: Validar planilha (não bloqueia)
         continue-on-error: true
         env:
@@ -45,6 +49,7 @@ jobs:
       # errado, o conteúdo anterior se perde — e são páginas publicadas.
       #
       # Salva só as abas listadas em CHECAR ABAS: as que serão reescritas.
+      # Consome 2 leituras da planilha (abrir + ler a aba de controle).
       - name: Backup das páginas
         continue-on-error: true
         env:
@@ -53,6 +58,17 @@ jobs:
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
           WP_USER: ${{ secrets.WP_USER }}
         run: python backup_paginas.py
+
+      # Espera a cota da API do Sheets renovar antes de publicar.
+      #
+      # A API permite 60 leituras por minuto por usuário. A validação sozinha
+      # lê o cabeçalho de todas as abas mapeadas e consome quase toda a cota;
+      # sem esta pausa, a publicação começa recebendo HTTP 429.
+      #
+      # O main.py também repete a chamada em caso de 429, mas é melhor não
+      # chegar lá: cada retentativa custa mais tempo que esperar aqui.
+      - name: Aguardar renovação da cota do Sheets
+        run: sleep 65
 
       # 6️⃣ Publicar
       - name: Run script

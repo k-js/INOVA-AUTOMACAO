@@ -62,28 +62,59 @@ except Exception as e:
 # =========================================
 # Acesso à Planilha (com verificações)
 # =========================================
+def com_retentativa(descricao, funcao, tentativas=5, espera=45):
+    """
+    Executa uma chamada ao Google Sheets, repetindo quando a cota estoura.
+
+    A API permite 60 leituras por minuto por usuário. Quando os passos
+    anteriores do workflow (validação, backup) já consumiram parte da cota, a
+    publicação começa recebendo HTTP 429. Como a cota se renova a cada minuto,
+    esperar e repetir resolve — falhar de imediato só adia o trabalho para a
+    execução seguinte.
+    """
+    for tentativa in range(1, tentativas + 1):
+        try:
+            return funcao()
+        except gspread.exceptions.APIError as e:
+            if "429" not in str(e) or tentativa == tentativas:
+                raise
+            print(f"⏳ Cota da API do Sheets atingida em '{descricao}'. "
+                  f"Aguardando {espera}s (tentativa {tentativa}/{tentativas - 1})...")
+            time.sleep(espera)
+
+
 try:
     # Abre a planilha
-    spreadsheet = client.open_by_key(GSHEET_KEY)
+    spreadsheet = com_retentativa(
+        "abrir planilha", lambda: client.open_by_key(GSHEET_KEY)
+    )
     print(f"✅ Planilha encontrada: {spreadsheet.title}")
-    
+
     # Lista todas as worksheets disponíveis
-    todas_worksheets = [ws.title for ws in spreadsheet.worksheets()]
+    todas_worksheets = [
+        ws.title for ws in com_retentativa(
+            "listar abas", lambda: spreadsheet.worksheets()
+        )
+    ]
     print(f"📋 Worksheets disponíveis: {todas_worksheets}")
-    
+
     # Verifica se a worksheet "CHECAR ABAS" existe
-    if "CHECAR ABAS" not in todas_worksheets:
-        raise Exception(f"Worksheet 'CHECAR ABAS' não encontrada. Worksheets disponíveis: {todas_worksheets}")
-    
+    if config.ABA_CONTROLE not in todas_worksheets:
+        raise Exception(f"Worksheet '{config.ABA_CONTROLE}' não encontrada. "
+                        f"Worksheets disponíveis: {todas_worksheets}")
+
     # Acessa a worksheet
-    sheet = spreadsheet.worksheet("CHECAR ABAS")
-    print("✅ Worksheet 'CHECAR ABAS' acessada com sucesso!")
-    
+    sheet = com_retentativa(
+        "acessar CHECAR ABAS",
+        lambda: spreadsheet.worksheet(config.ABA_CONTROLE),
+    )
+    print(f"✅ Worksheet '{config.ABA_CONTROLE}' acessada com sucesso!")
+
 except gspread.exceptions.SpreadsheetNotFound:
-    raise Exception("❌ Planilha não encontrada! Verifique:")
     print("1. 🔗 A chave GSHEETS_KEY está correta?")
     print("2. 👥 A planilha foi compartilhada com o service account?")
-    print(f"3. 📧 E-mail do service account: {creds.service_account_email}")
+    print(f"3. 📧 E-mail do service account: {creds_dict.get('client_email', '?')}")
+    raise Exception("❌ Planilha não encontrada!")
 except Exception as e:
     raise Exception(f"❌ Erro ao acessar planilha: {e}")
 
