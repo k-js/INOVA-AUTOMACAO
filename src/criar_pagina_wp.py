@@ -16,6 +16,7 @@ import os
 import re
 import unicodedata
 
+import rede
 import requests
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv

@@ -17,6 +17,7 @@ import json
 import unicodedata
 from datetime import datetime
 
+import rede
 import requests
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
@@ -63,10 +64,13 @@ def _normalizar(texto):
 # ---------------------------------------------------------------------
 def obter_pagina(slug):
     """Dados completos da página (com content.raw), ou None."""
-    resposta = requests.get(
-        f"{API}/pages",
-        params={"slug": slug, "context": "edit", "status": "publish,draft"},
-        auth=_auth(), headers=CABECALHOS, timeout=30,
+    resposta = rede.com_retentativa(
+        lambda: requests.get(
+            f"{API}/pages",
+            params={"slug": slug, "context": "edit", "status": "publish,draft"},
+            auth=_auth(), headers=CABECALHOS, timeout=30,
+        ),
+        descricao=f"obter página '{slug}'",
     )
     if resposta.status_code != 200:
         return None
@@ -171,11 +175,14 @@ def restaurar(caminho_backup, dry_run=False):
         return (f"restauraria a página {dados['pagina_id']} ({dados['slug']}) "
                 f"para o conteúdo de {dados['salvo_em']}")
 
-    resposta = requests.post(
-        f"{API}/pages/{dados['pagina_id']}",
-        auth=_auth(), headers=CABECALHOS,
-        json={"content": dados["conteudo"]},
-        timeout=30,
+    resposta = rede.com_retentativa(
+        lambda: requests.post(
+            f"{API}/pages/{dados['pagina_id']}",
+            auth=_auth(), headers=CABECALHOS,
+            json={"content": dados["conteudo"]},
+            timeout=30,
+        ),
+        descricao="restaurar página",
     )
     if resposta.status_code != 200:
         raise RuntimeError(f"falha ao restaurar (HTTP {resposta.status_code})")
@@ -300,11 +307,14 @@ def aplicar_botoes(slug, botoes, dry_run=False):
         return (f"reescreveria {len(botoes)} botões "
                 f"(conteúdo de {len(conteudo)} para {len(novo_conteudo)} chars)"), backup
 
-    resposta = requests.post(
-        f"{API}/pages/{pagina['id']}",
-        auth=_auth(), headers=CABECALHOS,
-        json={"content": novo_conteudo},
-        timeout=30,
+    resposta = rede.com_retentativa(
+        lambda: requests.post(
+            f"{API}/pages/{pagina['id']}",
+            auth=_auth(), headers=CABECALHOS,
+            json={"content": novo_conteudo},
+            timeout=30,
+        ),
+        descricao=f"gravar botões em /{slug}/",
     )
     if resposta.status_code != 200:
         raise RuntimeError(

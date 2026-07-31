@@ -90,11 +90,16 @@ def ler_paginas_do_site():
     pagina_atual = 1
 
     while True:
-        resposta = requests.get(
-            API_PAGINAS,
-            params={"per_page": 100, "page": pagina_atual, "_fields": "slug"},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=30,
+        # O site pode estar sob carga (outra publicação em andamento) e estourar
+        # o tempo limite. A retentativa cobre essa falha transitória.
+        resposta = rede.com_retentativa(
+            lambda: requests.get(
+                API_PAGINAS,
+                params={"per_page": 100, "page": pagina_atual, "_fields": "slug"},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=30,
+            ),
+            descricao=f"ler páginas do site (página {pagina_atual})",
         )
         if resposta.status_code != 200:
             break
