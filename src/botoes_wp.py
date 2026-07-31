@@ -74,6 +74,50 @@ def obter_pagina(slug):
     return paginas[0] if paginas else None
 
 
+def _achar_grade(conteudo):
+    """
+    Localiza a grade de botões dentro do conteúdo da página.
+
+    Retorna (inicio, fim) como posições no texto, ou None.
+
+    Lida com os dois formatos possíveis:
+
+    - Conteúdo bruto do Gutenberg, em que cada bloco vem delimitado por
+      comentários <!-- wp:buttons --> ... <!-- /wp:buttons -->
+    - HTML puro, sem os comentários de bloco
+
+    A grade é identificada por conter botões de largura 50
+    (wp-block-button__width-50) — é o que a distingue do bloco isolado do
+    botão VOLTAR, que tem largura padrão.
+    """
+    marcador_largura = "wp-block-button__width-50"
+
+    # Formato Gutenberg: usa os comentários de bloco como fronteira, para que
+    # a substituição não corte o bloco pela metade.
+    for m in re.finditer(r"<!--\s*wp:buttons\b", conteudo):
+        fechamento = conteudo.find("<!-- /wp:buttons -->", m.end())
+        if fechamento == -1:
+            continue
+        fim = fechamento + len("<!-- /wp:buttons -->")
+        if marcador_largura in conteudo[m.start():fim]:
+            return m.start(), fim
+
+    # HTML puro: delimita pela div do bloco de botões.
+    for m in re.finditer(r'<div class="wp-block-buttons[^"]*">', conteudo):
+        # Avança até fechar a div correspondente, contando aninhamentos.
+        profundidade = 0
+        pos = m.start()
+        for div in re.finditer(r"<div\b|</div>", conteudo[m.start():]):
+            profundidade += 1 if div.group(0).startswith("<div") else -1
+            if profundidade == 0:
+                pos = m.start() + div.end()
+                break
+        if pos > m.start() and marcador_largura in conteudo[m.start():pos]:
+            return m.start(), pos
+
+    return None
+
+
 def extrair_botoes(html):
     """
     Lê os botões da grade já presentes no conteúdo.
@@ -174,18 +218,29 @@ def montar_html_botoes(botoes):
         if i < len(direita):
             intercalados.append(direita[i])
 
-    linhas = [INICIO,
-              '<div class="wp-block-buttons is-content-justification-center '
-              'is-layout-flex wp-block-buttons-is-layout-flex">']
+    # Formato de bloco do Gutenberg: os comentários <!-- wp:... --> são o que
+    # faz o editor reconhecer isto como blocos editáveis. Sem eles, o conteúdo
+    # aparece como "bloco clássico" e o editor visual deixa de funcionar direito.
+    linhas = [
+        INICIO,
+        '<!-- wp:buttons {"layout":{"type":"flex",'
+        '"justifyContent":"center"}} -->',
+        '<div class="wp-block-buttons">',
+    ]
 
     for rotulo, url in intercalados:
+        linhas.append(
+            '<!-- wp:button {"width":50,"className":"is-style-default"} -->'
+        )
         linhas.append(
             f'<div class="{CLASSE_BOTAO}">'
             f'<a class="{CLASSE_LINK}" href="{url}" style="border-radius:0px">'
             f'{rotulo}</a></div>'
         )
+        linhas.append("<!-- /wp:button -->")
 
     linhas.append("</div>")
+    linhas.append("<!-- /wp:buttons -->")
     linhas.append(FIM)
     return "\n".join(linhas)
 
@@ -220,17 +275,23 @@ def aplicar_botoes(slug, botoes, dry_run=False):
             flags=re.S,
         )
     else:
-        # Primeira execução: envolve o bloco de botões existente.
-        padrao_grade = (r'<div class="wp-block-buttons is-content-justification-center'
-                        r'[^"]*">.*?</div>\s*(?=<p|<div class="wp-block-cover|$)')
-        m = re.search(padrao_grade, conteudo, re.S)
+        # Primeira execução: envolve a grade de botões existente.
+        #
+        # O conteúdo bruto do Gutenberg não é o HTML renderizado: cada bloco
+        # vem entre comentários <!-- wp:buttons --> ... <!-- /wp:buttons -->.
+        # A grade é o bloco de botões que contém os de largura 50 (os da
+        # grade), e não o bloco isolado do botão VOLTAR.
+        m = _achar_grade(conteudo)
         if not m:
             raise RuntimeError(
-                "não localizei a grade de botões na página. Adicione os "
-                f"marcadores {INICIO} e {FIM} em volta dela pelo editor do "
-                "WordPress e rode de novo."
+                "não localizei a grade de botões no conteúdo da página.\n"
+                f"Como contornar: abra /{slug}/ no editor do WordPress, entre "
+                f"no modo de edição de código (⋮ → Editor de código) e "
+                f"coloque as linhas\n\n  {INICIO}\n\ne\n\n  {FIM}\n\n"
+                "logo antes e logo depois do bloco de botões da grade."
             )
-        novo_conteudo = conteudo[:m.start()] + novo_bloco + conteudo[m.end():]
+        inicio, fim = m
+        novo_conteudo = conteudo[:inicio] + novo_bloco + conteudo[fim:]
 
     if novo_conteudo == conteudo:
         return "nada mudou na página", backup
