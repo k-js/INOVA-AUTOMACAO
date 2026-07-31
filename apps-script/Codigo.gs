@@ -352,7 +352,7 @@ function checarAbasComStatus() {
   var abaChecagem = planilha.getSheetByName('CHECAR ABAS');
 
   if (!abaChecagem) {
-    SpreadsheetApp.getUi().alert('A aba "CHECAR ABAS" não foi encontrada.');
+    relatar('A aba "CHECAR ABAS" não foi encontrada.');
     return;
   }
 
@@ -416,7 +416,30 @@ function checarAbasComStatus() {
               + abasSemColunaStatus.join(', ');
   }
 
-  SpreadsheetApp.getUi().alert(mensagem);
+  relatar(mensagem);
+}
+
+
+/**
+ * Mostra uma mensagem ao usuário, funcionando nos dois contextos de execução.
+ *
+ * getUi() só existe quando o script é acionado a partir da planilha (menu,
+ * botão, gatilho de UI). Rodando pelo editor do Apps Script não há interface
+ * associada, e a chamada falha. O log cobre esse caso: aparece no Registro de
+ * execução.
+ *
+ * @param {string} mensagem
+ * @return {void}
+ */
+function relatar(mensagem) {
+  console.log(mensagem);
+
+  try {
+    SpreadsheetApp.getUi().alert(mensagem);
+  } catch (e) {
+    // Sem interface disponível (execução pelo editor): o console.log acima já
+    // registrou a mensagem.
+  }
 }
 
 
@@ -567,7 +590,7 @@ function checarLinksErros() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var abaDestino = ss.getSheetByName('CHECAR ABAS');
   if (!abaDestino) {
-    SpreadsheetApp.getUi().alert('A aba "CHECAR ABAS" não foi encontrada.');
+    relatar('A aba "CHECAR ABAS" não foi encontrada.');
     return;
   }
 
@@ -619,7 +642,7 @@ function checarLinksErros() {
     });
 
     if (todosLinks.length === 0) {
-      SpreadsheetApp.getUi().alert('Nenhum link encontrado para checar.');
+      relatar('Nenhum link encontrado para checar.');
       return;
     }
 
@@ -695,7 +718,7 @@ function checarLinksErros() {
     // sem nunca terminar.
     props.deleteProperty('todosLinks');
     props.deleteProperty('ultimaPos');
-    SpreadsheetApp.getUi().alert(
+    relatar(
       'Não foi possível salvar o progresso: são links demais para a memória '
       + 'do Apps Script.\n\nA checagem foi interrompida. Reduza LOTE_TAMANHO '
       + 'ou rode a checagem por partes.'
