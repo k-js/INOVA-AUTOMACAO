@@ -180,9 +180,9 @@ def adicionar_ao_menu(nome_aba, menu_id, pai_id=None, dry_run=False):
     """
     Adiciona a página da aba a um menu de navegação.
 
-    O item do menu não fica visível enquanto a página for rascunho — o
-    WordPress esconde itens que apontam para conteúdo não publicado. Assim o
-    menu já fica pronto, e a entrada aparece junto com a publicação da página.
+    ⚠️ Só adiciona páginas PUBLICADAS. Um item de menu apontando para rascunho
+    fica visível ao público em vários temas — inclusive no tema deste site — e
+    leva o visitante a um 404. Publique a página primeiro.
 
     Retorna uma mensagem descrevendo o que aconteceu.
     """
@@ -190,6 +190,11 @@ def adicionar_ao_menu(nome_aba, menu_id, pai_id=None, dry_run=False):
     pagina = buscar_pagina_por_slug(slug)
     if not pagina:
         return "página não encontrada — nada a fazer no menu"
+
+    if pagina.get("status") != "publish":
+        return (f"não adicionada: a página está como '{pagina.get('status')}'. "
+                f"Um item de menu apontando para rascunho aparece no site e dá "
+                f"404 ao ser clicado. Publique a página e adicione ao menu depois.")
 
     if item_ja_no_menu(menu_id, pagina["id"]):
         return "já estava no menu"

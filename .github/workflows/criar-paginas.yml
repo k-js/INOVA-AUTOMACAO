@@ -28,6 +28,10 @@ on:
         description: 'Fazer commit do src/config.py atualizado'
         type: boolean
         default: false
+      limpar_menu:
+        description: 'Remover do menu os itens que apontam para páginas em rascunho'
+        type: boolean
+        default: false
 
 jobs:
   criar:
@@ -81,6 +85,25 @@ jobs:
           fi
           echo "Executando: python sincronizar_config.py $ARGS"
           python sincronizar_config.py $ARGS
+
+      # Um item de menu apontando para pagina em rascunho fica visivel no site
+      # e leva o visitante a um 404. Este passo tira esses itens do menu.
+      - name: Limpar itens de menu sem página publicada
+        if: ${{ inputs.limpar_menu == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          MENU="${{ inputs.menu_id }}"
+          if [ -z "$MENU" ]; then
+            echo "Informe menu_id para limpar o menu."
+            exit 1
+          fi
+          ARGS="--menu-id $MENU"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python remover_do_menu.py $ARGS
 
       - name: Commit do config atualizado
         if: ${{ inputs.commit == true && inputs.dry_run == false }}
