@@ -40,12 +40,23 @@ jobs:
       # ⚠️ A validação lê o cabeçalho de todas as abas mapeadas, o que consome
       # boa parte das 60 leituras/minuto que a API do Sheets permite. Por isso
       # o passo seguinte espera a cota renovar antes de publicar.
+      #
+      # Aqui a validação NÃO bloqueia nem fica vermelha por aba nova (código
+      # 2): a publicação das demais abas deve seguir normalmente. Quem avisa
+      # sobre aba nova é o workflow "Validar planilha", que roda às 08:00 e
+      # fica vermelho para o GitHub notificar.
       - name: Validar planilha (não bloqueia)
         continue-on-error: true
         env:
           GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
           GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
-        run: python validar.py
+        run: |
+          python validar.py || CODIGO=$?
+          if [ "${CODIGO:-0}" = "2" ]; then
+            echo "::notice::Há aba nova na planilha esperando decisão. Veja o log acima."
+            exit 0
+          fi
+          exit ${CODIGO:-0}
 
       # 5️⃣ Salvar o conteúdo atual das páginas ANTES de reescrevê-las
       #

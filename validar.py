@@ -45,8 +45,9 @@ import config
 # ---------------------------------------------------------------------
 # Coleta de problemas
 # ---------------------------------------------------------------------
-erros = []    # quebram a publicação
-avisos = []   # não quebram, mas merecem atenção
+erros = []      # quebram a publicação
+avisos = []     # não quebram, mas merecem atenção
+pendencias = [] # não quebram nada, mas alguém precisa decidir algo
 
 
 def erro(msg):
@@ -55,6 +56,21 @@ def erro(msg):
 
 def aviso(msg):
     avisos.append(msg)
+
+
+def pendencia(msg):
+    """
+    Registra algo que exige uma decisão humana — tipicamente uma aba nova na
+    planilha, que precisa de página no site ou de entrada em ABAS_IGNORADAS.
+
+    Diferente de `aviso`, isto faz a validação terminar com código de saída
+    diferente de zero: a Action fica vermelha e o GitHub notifica. Sem isso, o
+    aviso ficaria enterrado no log de uma execução verde e passaria batido.
+
+    Diferente de `erro`, não indica nada quebrado: a publicação das demais
+    abas segue normalmente.
+    """
+    pendencias.append(msg)
 
 
 def parecido(alvo, candidatos, n=2):
@@ -136,10 +152,20 @@ def checar_abas(nomes_reais):
     # Existe na planilha, não está configurada nem ignorada: aba nova.
     nao_mapeadas = reais - configuradas - config.ABAS_IGNORADAS
     for aba in sorted(nao_mapeadas):
-        aviso(
+        pendencia(
             f"Aba '{aba}' existe na planilha mas não tem página mapeada.\n"
-            f"     → Se já tem página no site, adicione em ABAS_LINKS.\n"
-            f"     → Se ainda não tem, adicione em ABAS_IGNORADAS para silenciar este aviso."
+            f"     Ela NÃO será publicada até que alguém decida o que fazer:\n"
+            f"\n"
+            f"     a) Criar a página e o botão automaticamente:\n"
+            f"        Actions → 'Criar páginas no WordPress' → Run workflow\n"
+            f"        marcando 'Criar as páginas que faltam' e\n"
+            f"        'Acrescentar os botões em /startups/'\n"
+            f"\n"
+            f"     b) Se a página já existe no site, adicione a aba em\n"
+            f"        ABAS_LINKS no src/config.py com a URL correta\n"
+            f"\n"
+            f"     c) Se a aba não deve ir para o site, adicione o nome em\n"
+            f"        ABAS_IGNORADAS no src/config.py"
         )
 
     # Abas de apoio obrigatórias.
@@ -290,12 +316,25 @@ def main():
         for a in avisos:
             print(f"  ⚠️  {a}\n")
 
+    if pendencias:
+        print(f"\n🆕 {len(pendencias)} aba(s) aguardando decisão:\n")
+        for p in pendencias:
+            print(f"  🆕 {p}\n")
+
     if erros:
         print(f"\n❌ {len(erros)} erro(s) — a publicação vai falhar:\n")
         for e in erros:
             print(f"  ❌ {e}\n")
         print("Corrija config.py (ou a planilha) e rode a validação de novo.")
         sys.exit(1)
+
+    if pendencias:
+        # Código 2 distingue "precisa de decisão" de "algo quebrado" (1).
+        # O workflow trata os dois de forma diferente: erro bloqueia, pendência
+        # só deixa a execução vermelha para o GitHub notificar.
+        print(f"\n🆕 {len(pendencias)} aba(s) nova(s) esperando uma decisão.")
+        print("   Nada está quebrado — as demais abas publicam normalmente.")
+        sys.exit(2)
 
     print("\n🎉 Configuração compatível com a planilha. Nada quebrado.")
     sys.exit(0)

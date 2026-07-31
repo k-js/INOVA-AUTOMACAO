@@ -31,6 +31,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Códigos de saída:
+      #   0 = tudo certo
+      #   1 = há erros que vão quebrar a publicação
+      #   2 = há aba nova na planilha esperando decisão
+      #
+      # O 2 também deixa a execução vermelha, de propósito: assim o GitHub
+      # notifica por e-mail. Um aviso enterrado no log de uma execução verde
+      # passaria despercebido, e a aba nova ficaria meses sem ir para o site.
       - name: Validar configuração contra a planilha
         env:
           GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
