@@ -2,6 +2,11 @@ name: Atualizar INOVA
 
 on:
   workflow_dispatch:  # permite rodar manualmente
+    inputs:
+      abas_forcadas:
+        description: 'Republicar estas abas mesmo sem STATUS pendente (separadas por vírgula)'
+        type: string
+        default: ''
   schedule:
     - cron: '0 10 * * *'  # Executa todos os dias às 10:00 UTC
 
@@ -71,6 +76,10 @@ jobs:
         run: sleep 65
 
       # 6️⃣ Publicar
+      #
+      # abas_forcadas republica uma aba mesmo sem STATUS pendente. Serve para
+      # quando a correção está no código, não nos dados: a publicação anterior
+      # já zerou o STATUS, e sem isso seria preciso marcar tudo de novo à mão.
       - name: Run script
         env:
           GSHEETS_KEY: ${{ secrets.GSHEETS_KEY }}
@@ -78,6 +87,7 @@ jobs:
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
           WP_USER: ${{ secrets.WP_USER }}
           WP_URL: ${{ secrets.WP_URL }}
+          ABAS_FORCADAS: ${{ inputs.abas_forcadas }}
         run: python main.py
 
       # 7️⃣ Publicar o backup como artefato, para download

@@ -121,17 +121,39 @@ except Exception as e:
 # =========================================
 # Leitura das Abas Selecionadas
 # =========================================
+# ABAS_FORCADAS permite republicar abas sem depender do STATUS na planilha.
+#
+# Necessário porque a publicação marca as linhas como "ADICIONADO AO SITE" ao
+# terminar: depois disso a aba some de CHECAR ABAS, e republicar exigiria
+# marcar STATUS de novo, linha por linha. Quando a correção está no CÓDIGO
+# (e não nos dados), isso é trabalho manual desnecessário.
+#
+# Uso: variável de ambiente com os nomes separados por vírgula.
+#   ABAS_FORCADAS="POLÍTICAS DE INOVAÇÃO,PROPRIEDADE INTELECTUAL"
+_forcadas = os.environ.get("ABAS_FORCADAS", "").strip()
+abas_forcadas = [a.strip() for a in _forcadas.split(",") if a.strip()] if _forcadas else []
+
 try:
     # Pega valores da coluna A a partir da linha 2
     abas_selecionadas = sheet.col_values(1)[1:]  # ignora a primeira linha (cabeçalho)
     abas_selecionadas = [aba.strip() for aba in abas_selecionadas if aba.strip()]
-    
+
+    if abas_forcadas:
+        print(f"🔁 Abas forçadas por ABAS_FORCADAS: {abas_forcadas}")
+        # Acrescenta sem duplicar as que já vieram de CHECAR ABAS.
+        ja_listadas = {a.upper() for a in abas_selecionadas}
+        for aba in abas_forcadas:
+            if aba.upper() not in ja_listadas:
+                abas_selecionadas.append(aba)
+
     print(f"✅ Abas que serão atualizadas: {abas_selecionadas}")
-    
+
     if not abas_selecionadas:
         print("⚠️  Nenhuma aba selecionada para atualização!")
+        print("   Marque STATUS na planilha e rode checarAbasComStatus, ou use")
+        print("   ABAS_FORCADAS para republicar sem mexer no STATUS.")
         exit(0)
-        
+
 except Exception as e:
     raise Exception(f"❌ Erro ao ler abas selecionadas: {e}")
 
