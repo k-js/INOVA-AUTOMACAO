@@ -35,6 +35,7 @@ for _fluxo in (sys.stdout, sys.stderr):
 # independentemente de onde o script é chamado.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
+import rede  # noqa: F401  força IPv4 (runners do GitHub não têm IPv6)
 import gspread
 from google.oauth2.service_account import Credentials
 
