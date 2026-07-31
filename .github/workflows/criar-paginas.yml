@@ -32,6 +32,10 @@ on:
         description: 'Remover do menu os itens que apontam para páginas em rascunho'
         type: boolean
         default: false
+      sincronizar_botoes:
+        description: 'Acrescentar os botões das 4 abas novas em /startups/ (faz backup antes)'
+        type: boolean
+        default: false
 
 jobs:
   criar:
@@ -104,6 +108,31 @@ jobs:
             ARGS="$ARGS --dry-run"
           fi
           python remover_do_menu.py $ARGS
+
+      # Reescreve a grade de botoes de /startups/. O conteudo anterior e salvo
+      # em backups/ e publicado como artefato, para permitir rollback.
+      - name: Sincronizar botões de /startups/
+        if: ${{ inputs.sincronizar_botoes == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="--dry-run"
+          fi
+          python sincronizar_botoes.py $ARGS
+
+      # O backup fica disponivel para download por 90 dias. Sem isso, o
+      # arquivo desapareceria junto com o runner ao fim da execucao.
+      - name: Guardar backup da página
+        if: ${{ inputs.sincronizar_botoes == true && inputs.dry_run == false }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-startups
+          path: backups/
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Commit do config atualizado
         if: ${{ inputs.commit == true && inputs.dry_run == false }}

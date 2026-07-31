@@ -29,3 +29,6 @@ material-fora-do-repo/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# backups locais da automacao (o workflow publica como artefato)
+backups/
