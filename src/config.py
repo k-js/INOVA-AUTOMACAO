@@ -125,19 +125,14 @@ ABAS_IGNORADAS = {
     "SPORTECHS",
 }
 
-# Abas em preparação: saíram de ABAS_IGNORADAS para serem varridas pelo Apps
-# Script, mas as páginas ainda não existem no site — verificado na API do
-# WordPress em 30/07/2026: /gametechs/, /insurtechs/, /traveltechs/ e
-# /fashiontechs/ retornam vazio.
+# Abas cuja página no WordPress ainda está como RASCUNHO.
 #
-# Enquanto estiverem aqui, o validador avisa (sem tratar como erro) e a
-# publicação reporta "Link não mapeado" caso alguma seja marcada em
-# CHECAR ABAS.
+# A página existe e já tem URL em ABAS_LINKS, mas só vai ao ar quando alguém
+# clicar em "Publicar" no WordPress. Até lá, a publicação falha nessas abas: o
+# atualizador_WP.py procura a página pelo slug, e a API não retorna rascunhos
+# em busca não autenticada.
 #
-# Ao criar cada página no WordPress (com o marcador
-# <!-- COMECA ATUALIZAR DAQUI -->), mova a aba daqui para ABAS_LINKS com a URL
-# real. Confira o slug: ele nem sempre segue o nome da aba — DEEPTECHS aponta
-# para /biotechs/ e RETAILTECHS para /retailtechs-2/.
+# Ao publicar a página no WordPress, tire o nome desta lista.
 ABAS_AGUARDANDO_PAGINA = {
     "FASHIONTECHS",
     "GAMETECHS",
