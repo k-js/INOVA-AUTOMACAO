@@ -32,6 +32,7 @@ for _fluxo in (sys.stdout, sys.stderr):
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
+import rede  # noqa: F401  força IPv4 (runners do GitHub não têm IPv6)
 import requests
 from requests.auth import HTTPBasicAuth
 
