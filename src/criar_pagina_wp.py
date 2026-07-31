@@ -137,6 +137,11 @@ def criar_pagina(nome_aba, dry_run=False):
             "content": CONTEUDO_INICIAL,
             # Rascunho: só vai ao ar quando alguém publicar manualmente.
             "status": "draft",
+            # Página na raiz do site, como todas as demais páginas de techs:
+            # /gametechs/ e não /startups/gametechs/. Com um ascendente, a URL
+            # mudaria e deixaria de bater com a registrada em ABAS_LINKS,
+            # fazendo a publicação não encontrar a página.
+            "parent": 0,
         },
         timeout=30,
     )
@@ -191,7 +196,22 @@ def publicar_pagina(nome_aba, dry_run=False):
             f"{resposta.text[:200]}"
         )
 
-    return f"{SITE}/{slug}/", f"PUBLICADA (id {pagina['id']})"
+    # A URL real pode diferir da esperada se a página tiver um ascendente
+    # (ex.: /startups/gametechs/ em vez de /gametechs/). Nesse caso a
+    # publicação não encontraria a página pelo link em ABAS_LINKS.
+    dados = resposta.json()
+    url_real = dados.get("link", "")
+    url_esperada = f"{SITE}/{slug}/"
+
+    if url_real and url_real.rstrip("/") != url_esperada.rstrip("/"):
+        return url_real, (
+            f"PUBLICADA (id {pagina['id']}), mas a URL ficou {url_real} "
+            f"em vez de {url_esperada}.\n"
+            f"     Atualize ABAS_LINKS no src/config.py, ou tire o ascendente "
+            f"da página no WordPress."
+        )
+
+    return url_esperada, f"PUBLICADA (id {pagina['id']})"
 
 
 # ---------------------------------------------------------------------
