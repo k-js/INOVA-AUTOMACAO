@@ -1,0 +1,85 @@
+{
+ "analisado_em": "2026-08-13T23:08:10",
+ "capas": {
+  "FASHIONTECHS": {
+   "termo": "retail clothing store",
+   "arquivo": "capa-fashiontechs.jpg",
+   "alt": "Roupas em cabides dentro de vitrine de loja de moda.",
+   "recorte": "2400x800",
+   "escolhida": {
+    "origem": "Pexels",
+    "licenca": "Pexels License (uso comercial, sem atribuição obrigatória)",
+    "url_pagina": "https://www.pexels.com/photo/clothes-in-store-behind-window-13532891/",
+    "autor": "Mathias Reding",
+    "url_arquivo": "https://images.pexels.com/photos/13532891/pexels-photo-13532891.jpeg",
+    "original": "6094x4063",
+    "legenda": "Close-up of clothing on hangers inside a fashion store window.",
+    "similaridade": 0.288,
+    "saturacao": 83,
+    "relevancia": 0.996,
+    "pessoas": 0.715,
+    "nsfw": 0.0
+   }
+  },
+  "GAMETECHS": {
+   "termo": "game development studio",
+   "arquivo": "capa-gametechs.jpg",
+   "alt": "Escritório caseiro iluminado com dois monitores para codificação e programação.",
+   "recorte": "2400x800",
+   "escolhida": {
+    "origem": "Pexels",
+    "licenca": "Pexels License (uso comercial, sem atribuição obrigatória)",
+    "url_pagina": "https://www.pexels.com/photo/computer-with-code-4218883/",
+    "autor": "Paras Katwal",
+    "url_arquivo": "https://images.pexels.com/photos/4218883/pexels-photo-4218883.jpeg",
+    "original": "6000x4000",
+    "legenda": "Warmly lit home office with dual screens for coding and programming. Perfect modern workspace for tech enthusiasts.",
+    "similaridade": 0.244,
+    "saturacao": 76,
+    "relevancia": 0.723,
+    "pessoas": 0.094,
+    "nsfw": 0.0
+   }
+  },
+  "INSURTECHS": {
+   "termo": "corporate office building",
+   "arquivo": "capa-insurtechs.jpg",
+   "alt": "Escritório moderno iluminado dentro de prédio de vidro.",
+   "recorte": "2400x800",
+   "escolhida": {
+    "origem": "Pexels",
+    "licenca": "Pexels License (uso comercial, sem atribuição obrigatória)",
+    "url_pagina": "https://www.pexels.com/photo/building-with-glass-windows-13219418/",
+    "autor": "Egor Komarov",
+    "url_arquivo": "https://images.pexels.com/photos/13219418/pexels-photo-13219418.jpeg",
+    "original": "8272x6200",
+    "legenda": "Illuminated office inside a modern glass building exterior, showcasing architecture and workspace design.",
+    "similaridade": 0.269,
+    "saturacao": 127,
+    "relevancia": 0.992,
+    "pessoas": 0.084,
+    "nsfw": 0.0
+   }
+  },
+  "TRAVELTECHS": {
+   "termo": "travel tourist destinations",
+   "arquivo": "capa-traveltechs.jpg",
+   "alt": "Praia de Maya Bay na Tailândia, cercada por falésias e águas turquesa.",
+   "recorte": "2400x800",
+   "escolhida": {
+    "origem": "Pexels",
+    "licenca": "Pexels License (uso comercial, sem atribuição obrigatória)",
+    "url_pagina": "https://www.pexels.com/photo/tourists-enjoying-maya-bay-s-scenic-beauty-in-thailand-33797713/",
+    "autor": "Musaddek Sayek",
+    "url_arquivo": "https://images.pexels.com/photos/33797713/pexels-photo-33797713.jpeg",
+    "original": "9504x5344",
+    "legenda": "Visitors on the picturesque beach of Maya Bay in Thailand, surrounded by lush cliffs and turquoise waters.",
+    "similaridade": 0.276,
+    "saturacao": 85,
+    "relevancia": 0.998,
+    "pessoas": 0.481,
+    "nsfw": 0.0
+   }
+  }
+ }
+}
