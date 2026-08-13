@@ -33,5 +33,7 @@ Thumbs.db
 # backups locais da automacao (o workflow publica como artefato)
 backups/
 
-# Capas propostas pela automacao (artefato de conferencia, nao versionar)
-capas/
+# Imagens propostas pela automacao: saem como artefato, nao versionadas.
+# O capas.json fica de fora do ignore -- e ele que registra a escolha,
+# a procedencia e a licenca, e e dele que --aplicar trabalha.
+capas/*.jpg

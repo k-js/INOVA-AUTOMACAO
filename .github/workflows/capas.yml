@@ -17,6 +17,18 @@ name: Capas das páginas
 on:
   workflow_dispatch:
     inputs:
+      analisar:
+        description: 'Etapa 1 — buscar e analisar as capas (não toca no site)'
+        type: boolean
+        default: true
+      aplicar:
+        description: 'Etapa 2 — gravar no site as capas de capas.json'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Com "aplicar": mostrar o que faria, sem gravar'
+        type: boolean
+        default: true
       abas:
         description: 'Limitar a estas abas (separadas por vírgula; vazio = todas as sem capa)'
         type: string
@@ -33,6 +45,10 @@ on:
 jobs:
   capas:
     runs-on: ubuntu-latest
+
+    # Necessário para commitar o capas.json.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -57,7 +73,8 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-visao.txt
 
-      - name: Analisar capas
+      - name: Etapa 1 — analisar capas
+        if: ${{ inputs.analisar == true }}
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -70,6 +87,41 @@ jobs:
           fi
           if [ -n "${{ inputs.modelo }}" ]; then
             ARGS="$ARGS --modelo ${{ inputs.modelo }}"
+          fi
+          python gerar_capas.py $ARGS
+
+      # O capas.json registra a escolha, a procedencia e a licenca de cada foto,
+      # e e dele que a Etapa 2 trabalha -- por isso vai para o repositorio, ao
+      # contrario das imagens, que saem como artefato.
+      - name: Commit das escolhas
+        if: ${{ inputs.analisar == true }}
+        run: |
+          if [ ! -f capas.json ]; then
+            echo "capas.json não foi gerado — nada a commitar."
+            exit 0
+          fi
+          git add capas.json
+          if git diff --cached --quiet -- capas.json; then
+            echo "capas.json sem mudanças — nada a commitar."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Capas escolhidas pela Action
+
+          Cada entrada traz a foto, o autor, a licenca e as notas da analise."
+          git push
+
+      - name: Etapa 2 — aplicar capas
+        if: ${{ inputs.aplicar == true }}
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS="--aplicar"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
           fi
           python gerar_capas.py $ARGS
 

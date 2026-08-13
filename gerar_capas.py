@@ -49,9 +49,12 @@ import descricao
 import imagem as img
 import banco_imagens as banco
 import visao
+import capa as capa_wp
+import preambulo as P
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 DIR_SAIDA = os.path.join(RAIZ, "capas")
+ARQUIVO = os.path.join(RAIZ, "capas.json")
 load_dotenv(dotenv_path=os.path.join(RAIZ, "credenciais", ".env"))
 
 API = "https://inova.ufpr.br/wp-json/wp/v2"
@@ -100,7 +103,6 @@ def paginas_sem_capa(filtro=None):
             continue
 
         conteudo = pagina.get("content", {}).get("raw", "")
-        import preambulo as P
         partes = P.partir_conteudo(conteudo)
         if not partes:
             print(f"   ⚠️  {aba}: sem o marcador de publicação")
@@ -211,6 +213,7 @@ def analisar(args):
             "escolhida": {
                 "origem": cand["origem"], "licenca": cand["licenca"],
                 "url_pagina": cand["url_pagina"], "autor": cand["autor"],
+                "url_arquivo": cand["url_arquivo"],
                 "original": f"{cand['largura']}x{cand['altura']}",
                 "legenda": cand["legenda"],
                 "similaridade": round(res["similaridade"], 3),
@@ -219,15 +222,135 @@ def analisar(args):
             },
         }
 
-    caminho = os.path.join(DIR_SAIDA, "capas.json")
-    with open(caminho, "w", encoding="utf-8") as f:
+    with open(ARQUIVO, "w", encoding="utf-8") as f:
         json.dump({"analisado_em": datetime.now().isoformat(timespec="seconds"),
                    "capas": relatorio}, f, ensure_ascii=False, indent=1)
 
     print("=" * 64)
-    print(f"💾 {len(relatorio)} análise(s) em capas/capas.json")
+    print(f"💾 {len(relatorio)} análise(s) em capas.json")
     print("   As imagens recortadas estão em capas/, para conferência.")
     print("   NADA foi enviado ao site — a gravação entra na próxima etapa.")
+
+
+def aplicar(args):
+    """
+    Grava no site as capas registradas em capas.json.
+
+    Nada é escolhido aqui: a foto vencedora é rebaixada pela URL que ficou
+    guardada, para o que vai ao ar ser exatamente o que foi conferido.
+    """
+    if not os.path.exists(ARQUIVO):
+        print(f"❌ {ARQUIVO} não existe. Rode --analisar primeiro.")
+        sys.exit(1)
+
+    with open(ARQUIVO, encoding="utf-8") as f:
+        dados_json = json.load(f)
+    capas = {a: c for a, c in dados_json.get("capas", {}).items() if c.get("escolhida")}
+
+    print(f"📄 capas.json — {len(capas)} capa(s), analisadas em "
+          f"{dados_json.get('analisado_em', '?')}\n")
+    if not capas:
+        print("Nenhuma capa escolhida no arquivo.")
+        return
+
+    # O bloco wp:cover é copiado de uma página que já funciona, e não escrito
+    # de cabeça: a estrutura do Gutenberg repete o mesmo dado em três lugares.
+    url_modelo = config.ABAS_LINKS.get(P.ABA_MODELO)
+    pagina_modelo = obter_pagina(url_modelo.rstrip("/").rsplit("/", 1)[-1])
+    if not pagina_modelo:
+        print(f"❌ página modelo '{P.ABA_MODELO}' não encontrada.")
+        sys.exit(1)
+    partes_modelo = P.partir_conteudo(pagina_modelo.get("content", {}).get("raw", ""))
+    bloco_modelo = capa_wp.extrair_bloco_modelo(partes_modelo[0]) if partes_modelo else None
+    if not bloco_modelo:
+        print(f"❌ a página modelo '{P.ABA_MODELO}' não tem bloco wp:cover.")
+        sys.exit(1)
+    print(f"🧩 bloco de capa copiado de {P.ABA_MODELO} ({len(bloco_modelo)} chars)\n")
+
+    carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
+    pasta_backup = os.path.join(RAIZ, "backups", f"capa-{carimbo}")
+    aplicadas = 0
+
+    for aba, item in sorted(capas.items()):
+        escolha = item["escolhida"]
+        url = config.ABAS_LINKS.get(aba)
+        if not url:
+            print(f"   ✗ {aba}: fora de ABAS_LINKS")
+            continue
+        slug = url.rstrip("/").rsplit("/", 1)[-1]
+
+        pagina = obter_pagina(slug)
+        if not pagina:
+            print(f"   ✗ {aba}: página não encontrada")
+            continue
+
+        conteudo = pagina.get("content", {}).get("raw", "")
+        partes = P.partir_conteudo(conteudo)
+        if not partes:
+            print(f"   ✗ {aba}: sem o marcador de publicação")
+            continue
+        pre, tabela, sufixo = partes
+
+        # Nunca por cima de uma capa existente: se alguém pôs uma no meio do
+        # caminho, é decisão de gente e prevalece.
+        if P.conteudo_do_preambulo(pre)[0]:
+            print(f"   ⏭️  {aba}: já tem capa, pulando")
+            continue
+
+        print(f"   {aba}")
+        print(f"      {escolha['url_pagina']}  ({escolha['autor']})")
+
+        if args.dry_run:
+            print(f"      alt: {item['alt']}\n")
+            continue
+
+        dados = banco.baixar({"url_arquivo": escolha["url_arquivo"]})
+        recorte, largura, altura = img.padronizar(dados)
+
+        media_id, url_midia = capa_wp.enviar_para_biblioteca(
+            API, recorte, img.nome_do_arquivo(slug), item["alt"],
+            f"Capa {aba}", _auth())
+        print(f"      mídia {media_id}: {largura}x{altura}, {len(recorte)//1024} KB")
+
+        bloco, problemas = capa_wp.montar_bloco(bloco_modelo, url_midia, media_id,
+                                                item["alt"])
+        novo_pre = capa_wp.inserir_capa(pre, bloco) if bloco else None
+
+        # Mesma disciplina do preâmbulo: confere ANTES de gravar.
+        if novo_pre:
+            if not P.tem_preambulo(novo_pre):
+                problemas.append("o CSS ou o campo de busca não sobreviveram")
+            if len(P.conteudo_do_preambulo(novo_pre)[0]) != 1:
+                problemas.append("a página ficou com um número inesperado de imagens")
+            if P.texto_editorial(pre) and not P.texto_editorial(novo_pre):
+                problemas.append("a descrição da página se perdeu")
+        if problemas:
+            print(f"      ✗ não gravei: {'; '.join(problemas)}\n")
+            continue
+
+        os.makedirs(pasta_backup, exist_ok=True)
+        with open(os.path.join(pasta_backup, f"{slug}.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump({"slug": slug, "pagina_id": pagina["id"],
+                       "salvo_em": datetime.now().isoformat(timespec="seconds"),
+                       "conteudo": conteudo}, f, ensure_ascii=False, indent=1)
+
+        resposta = rede.com_retentativa(
+            lambda: requests.post(
+                f"{API}/pages/{pagina['id']}", auth=_auth(), headers=CABECALHOS,
+                json={"content": novo_pre + tabela + sufixo}, timeout=60),
+            descricao=f"gravar capa em /{slug}/",
+        )
+        if resposta.status_code == 200:
+            print("      ✓ capa aplicada\n")
+            aplicadas += 1
+        else:
+            print(f"      ✗ falha (HTTP {resposta.status_code})\n")
+
+    if args.dry_run:
+        print("(--dry-run: nada foi alterado)")
+    elif aplicadas:
+        print(f"💾 Backups em backups/capa-{carimbo}/")
 
 
 def main():
@@ -235,6 +358,10 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--analisar", action="store_true",
                         help="busca, analisa e recorta — sem tocar no site")
+    parser.add_argument("--aplicar", action="store_true",
+                        help="grava no site as capas escolhidas em capas.json")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="com --aplicar, mostra o que faria sem gravar")
     parser.add_argument("--abas", default="",
                         help="limita a estas abas (separadas por vírgula)")
     parser.add_argument("--limite", type=int, default=8,
@@ -248,6 +375,8 @@ def main():
 
     if args.analisar:
         analisar(args)
+    elif args.aplicar:
+        aplicar(args)
     else:
         parser.print_help()
 
