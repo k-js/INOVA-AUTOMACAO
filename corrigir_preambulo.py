@@ -1,15 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Copia o preâmbulo de uma página modelo para as páginas que estão sem ele.
+Padroniza o preâmbulo das páginas a partir de uma página modelo.
 
-O preâmbulo é tudo que vem ANTES do marcador <!-- COMECA ATUALIZAR DAQUI -->:
-o bloco <style> que centraliza as colunas da tabela e o campo "Busque por uma
-organização". Ele não é gerado pela automação — fica no conteúdo da página, e
-por isso as páginas criadas pelo criar_pagina_wp.py nasceram sem ele.
+O preâmbulo é tudo que vem ANTES do marcador <!-- COMECA ATUALIZAR DAQUI -->.
+Ele não é gerado pela automação — fica no conteúdo da página, fora do alcance
+da publicação diária —, e mistura duas coisas bem diferentes:
 
-Sintomas de uma página sem preâmbulo:
-  - colunas UF/Cidade/Categoria alinhadas à esquerda, e não centralizadas
-  - campo de busca ausente
+  ESTRUTURA (igual em todas): o <style> que centraliza as colunas da tabela
+             e o campo "Busque por uma organização"
+  CONTEÚDO  (de cada página): a imagem de capa e o texto de apresentação
+
+Só a ESTRUTURA é copiada do modelo. Levar o conteúdo junto põe a capa e a
+descrição do modelo em todas as outras páginas.
+
+Duas situações são corrigidas:
+  - página sem o CSS/campo de busca (colunas à esquerda, sem busca)
+  - página exibindo a capa e o texto do modelo, por cópia indevida anterior
+
+Uma página com capa e descrição PRÓPRIAS é listada e pulada, para não perder
+conteúdo editorial. Use --forcar para sobrescrever mesmo assim.
 
 Segurança: o conteúdo atual é salvo em backups/ antes de qualquer escrita.
 
@@ -115,29 +124,66 @@ def tem_preambulo(conteudo):
     return tem_busca and tem_css
 
 
-def conteudo_a_perder(preambulo):
+def conteudo_do_preambulo(preambulo):
     """
-    O que a substituição do preâmbulo apagaria além do CSS e do campo de busca.
+    O conteúdo editorial que vive no preâmbulo: capa e texto de apresentação.
 
-    O preâmbulo padrão só tem o <head> com o <style>, a abertura de
-    <body>/<div> e o campo de busca. Se a página tiver imagem de capa ou um
-    texto de apresentação ali, trocar o preâmbulo os apaga — e é melhor parar
-    e avisar do que descobrir isso depois, no site no ar.
-
-    Retorna a lista do que seria perdido (vazia se não houver nada).
+    Retorna (imagens, texto). Ambos vazios quando o preâmbulo só tem estrutura
+    — o <head> com o CSS, a abertura de <body>/<div> e o campo de busca.
     """
     corpo = re.sub(r"<head>.*?</head>", "", preambulo, flags=re.S | re.I)
     corpo = re.sub(r"<style>.*?</style>", "", corpo, flags=re.S | re.I)
+    corpo = re.sub(r"<input\b[^>]*>", "", corpo, flags=re.I)
 
+    imagens = tuple(re.findall(r"<img\b[^>]*?src=[\"']([^\"']+)[\"']", corpo, re.I))
+    texto = re.sub(r"<[^>]+>", " ", corpo).replace("&nbsp;", " ")
+    texto = re.sub(r"\s+", " ", texto).strip()
+
+    return imagens, texto
+
+
+def descrever_conteudo(preambulo):
+    """Lista legível do que há de editorial no preâmbulo (vazia se não houver)."""
+    imagens, texto = conteudo_do_preambulo(preambulo)
     achados = []
-    if re.search(r"<img\b", corpo, re.I):
-        achados.append("imagem")
-
-    texto = re.sub(r"<[^>]+>", " ", corpo).replace("&nbsp;", " ").strip()
+    if imagens:
+        achados.append(f"{len(imagens)} imagem(ns)")
     if texto:
         achados.append(f"texto ({texto[:60]!r})")
-
     return achados
+
+
+def preambulo_estrutural(preambulo):
+    """
+    Só a parte reaproveitável do preâmbulo do modelo: o <head> com o CSS e o
+    campo de busca.
+
+    A capa e o texto de apresentação do modelo ficam de fora — eles são
+    conteúdo DAQUELA página. Copiar o preâmbulo inteiro põe a imagem e a
+    descrição do modelo em todas as outras, que foi exatamente o que aconteceu
+    com FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS.
+
+    A montagem é por lista de permissão: o que não for reconhecido é
+    descartado, e não o contrário. Retorna None se faltar alguma peça.
+    """
+    cabecalho = re.search(r"<head>.*?</head>", preambulo, re.S | re.I)
+    busca = re.search(r"<input\b[^>]*id=[\"']search[\"'][^>]*>", preambulo, re.I)
+    if not cabecalho or not busca:
+        return None
+    return f"{cabecalho.group(0)}\n\n<body>\n<div>\n{busca.group(0)}\n"
+
+
+def herdou_do_modelo(preambulo_pagina, preambulo_modelo):
+    """
+    True se a página está exibindo a capa e o texto da página modelo.
+
+    Serve para desfazer a cópia indevida sem tocar nas páginas que têm capa e
+    descrição próprias: só reconhece quando o conteúdo é idêntico ao do modelo.
+    """
+    da_pagina = conteudo_do_preambulo(preambulo_pagina)
+    if da_pagina == ((), ""):
+        return False
+    return da_pagina == conteudo_do_preambulo(preambulo_modelo)
 
 
 def salvar_backup(slug, pagina, pasta):
@@ -185,24 +231,39 @@ def main():
         print(f"❌ A página modelo não tem o marcador {MARCADOR}.")
         sys.exit(1)
 
-    # Só o PREÂMBULO vem do modelo. A tabela e o que vem depois dela (as tags
-    # de fechamento e os <script> de filtro) continuam sendo os de cada página:
-    # a correção mexe apenas no pedaço que está errado.
-    preambulo = partes[0]
-
     if not tem_preambulo(conteudo_modelo):
         print(f"❌ A página modelo '{args.modelo}' não tem o CSS e o campo de "
               f"busca esperados. Escolha outra com --modelo.")
         sys.exit(1)
 
+    # Do modelo aproveita-se APENAS a estrutura (CSS + campo de busca). A capa
+    # e o texto dele são conteúdo daquela página e ficam de fora.
+    #
+    # A tabela e o que vem depois dela (fechamento das tags e os <script> de
+    # filtro) continuam sendo os de cada página: a correção mexe só no pedaço
+    # que está errado.
+    preambulo_modelo = partes[0]
+    preambulo = preambulo_estrutural(preambulo_modelo)
+    if not preambulo:
+        print(f"❌ Não achei o <head> e o campo de busca no preâmbulo de "
+              f"'{args.modelo}'. Escolha outra página com --modelo.")
+        sys.exit(1)
+
     print(f"📄 Modelo: {args.modelo}")
-    print(f"   preâmbulo: {len(preambulo)} chars")
+    print(f"   preâmbulo do modelo: {len(preambulo_modelo)} chars")
+    print(f"   estrutura aproveitada: {len(preambulo)} chars")
+    editorial = descrever_conteudo(preambulo_modelo)
+    if editorial:
+        print(f"   descartado (é do modelo): {', '.join(editorial)}")
 
     # --- Verifica cada página ---
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
     pasta_backup = os.path.join(DIR_BACKUPS, f"preambulo-{carimbo}")
 
-    sem_preambulo = []
+    # (aba, slug, pagina, conteudo, motivo, proprio)
+    #   motivo  = por que precisa de correção
+    #   proprio = conteúdo editorial da própria página que seria perdido
+    a_corrigir = []
     ok = 0
 
     print("\n🔍 Verificando páginas...")
@@ -221,26 +282,34 @@ def main():
             continue
 
         conteudo = pagina.get("content", {}).get("raw", "")
+        partes_pagina = partir_conteudo(conteudo)
+        pre_pagina = partes_pagina[0] if partes_pagina else ""
+
+        # Página exibindo a capa e o texto do modelo: cópia indevida a desfazer.
+        if herdou_do_modelo(pre_pagina, preambulo_modelo):
+            a_corrigir.append((aba, slug, pagina, conteudo,
+                               f"exibindo capa/texto de {args.modelo}", []))
+            continue
+
         if tem_preambulo(conteudo):
             ok += 1
             continue
 
-        partes_pagina = partir_conteudo(conteudo)
-        perdas = conteudo_a_perder(partes_pagina[0]) if partes_pagina else []
-        sem_preambulo.append((aba, slug, pagina, conteudo, perdas))
+        a_corrigir.append((aba, slug, pagina, conteudo,
+                           "sem CSS/campo de busca", descrever_conteudo(pre_pagina)))
 
     print(f"   {ok} página(s) já com o preâmbulo correto")
 
-    if not sem_preambulo:
+    if not a_corrigir:
         print("\n✅ Todas as páginas já estão padronizadas.")
         return
 
-    print(f"\n🎯 {len(sem_preambulo)} página(s) a corrigir:")
-    for aba, slug, _, _, perdas in sem_preambulo:
-        marca = f"  ⚠️  perderia: {', '.join(perdas)}" if perdas else ""
-        print(f"   - {aba}  (/{slug}/){marca}")
+    print(f"\n🎯 {len(a_corrigir)} página(s) a corrigir:")
+    for aba, slug, _, _, motivo, proprio in a_corrigir:
+        marca = f"  ⚠️  perderia: {', '.join(proprio)}" if proprio else ""
+        print(f"   - {aba}  (/{slug}/)  — {motivo}{marca}")
 
-    if any(perdas for *_, perdas in sem_preambulo) and not args.forcar:
+    if any(proprio for *_, proprio in a_corrigir) and not args.forcar:
         print("\n⚠️  As páginas marcadas têm conteúdo próprio antes da tabela "
               "(capa ou descrição).\n"
               "   Trocar o preâmbulo apagaria esse conteúdo, então elas serão "
@@ -252,9 +321,9 @@ def main():
         return
 
     print()
-    for aba, slug, pagina, conteudo, perdas in sem_preambulo:
-        if perdas and not args.forcar:
-            print(f"   ⏭️  {aba}: pulada (perderia {', '.join(perdas)})")
+    for aba, slug, pagina, conteudo, motivo, proprio in a_corrigir:
+        if proprio and not args.forcar:
+            print(f"   ⏭️  {aba}: pulada (perderia {', '.join(proprio)})")
             continue
 
         partes = partir_conteudo(conteudo)
