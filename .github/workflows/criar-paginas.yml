@@ -170,7 +170,9 @@ jobs:
         run: |
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="--dry-run"
+            # Na simulacao imprime tambem o preambulo que seria aplicado. E a
+            # unica forma de conferir o resultado ANTES de ele ir para o site.
+            ARGS="--dry-run --mostrar-modelo"
           fi
           python corrigir_preambulo.py $ARGS
 

@@ -155,22 +155,40 @@ def descrever_conteudo(preambulo):
 
 def preambulo_estrutural(preambulo):
     """
-    Só a parte reaproveitável do preâmbulo do modelo: o <head> com o CSS e o
-    campo de busca.
+    O preâmbulo do modelo sem a capa — tudo o mais é mantido como está.
 
-    A capa e o texto de apresentação do modelo ficam de fora — eles são
-    conteúdo DAQUELA página. Copiar o preâmbulo inteiro põe a imagem e a
-    descrição do modelo em todas as outras, que foi exatamente o que aconteceu
-    com FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS.
+    Do preâmbulo, só o bloco de capa (wp:cover, com a imagem e o título) é
+    conteúdo daquela página. Os <style>, o botão VOLTAR e a abertura de
+    <body>/<div> com o campo de busca são iguais em todas e ficam.
 
-    A montagem é por lista de permissão: o que não for reconhecido é
-    descartado, e não o contrário. Retorna None se faltar alguma peça.
+    A remoção é cirúrgica, e não uma remontagem por lista de permissão: a
+    estrutura exata importa (são blocos do Gutenberg, e os <style> estão
+    espalhados em mais de um <head>), e tentar remontá-la já derrubou o CSS da
+    tabela uma vez. Confira o resultado com conferir_preambulo() antes de usar.
     """
-    cabecalho = re.search(r"<head>.*?</head>", preambulo, re.S | re.I)
-    busca = re.search(r"<input\b[^>]*id=[\"']search[\"'][^>]*>", preambulo, re.I)
-    if not cabecalho or not busca:
-        return None
-    return f"{cabecalho.group(0)}\n\n<body>\n<div>\n{busca.group(0)}\n"
+    return re.sub(r"<!--\s*wp:cover\b.*?<!--\s*/wp:cover\s*-->\s*", "",
+                  preambulo, flags=re.S | re.I)
+
+
+def conferir_preambulo(preambulo):
+    """
+    Confere o preâmbulo pronto antes de gravar. Lista os problemas achados.
+
+    Duas coisas já foram para o site erradas daqui: a capa do modelo em todas
+    as páginas, e o CSS da tabela sumindo numa remontagem. Cada uma virou uma
+    checagem — melhor abortar do que descobrir depois, olhando o site.
+    """
+    problemas = []
+
+    if not tem_preambulo(preambulo):
+        problemas.append("o CSS de centralização ou o campo de busca não "
+                         "sobreviveram à limpeza")
+
+    imagens, _ = conteudo_do_preambulo(preambulo)
+    if imagens:
+        problemas.append(f"a capa do modelo continua aqui: {imagens[0][:80]}")
+
+    return problemas
 
 
 def herdou_do_modelo(preambulo_pagina, preambulo_modelo):
@@ -208,6 +226,8 @@ def main():
     parser.add_argument("--forcar", action="store_true",
                         help="corrige mesmo as páginas cujo preâmbulo tem "
                              "conteúdo próprio (capa/descrição) — ele será perdido")
+    parser.add_argument("--mostrar-modelo", action="store_true",
+                        help="imprime o preâmbulo que seria aplicado, para conferência")
     args = parser.parse_args()
 
     print("=" * 64)
@@ -236,25 +256,33 @@ def main():
               f"busca esperados. Escolha outra com --modelo.")
         sys.exit(1)
 
-    # Do modelo aproveita-se APENAS a estrutura (CSS + campo de busca). A capa
-    # e o texto dele são conteúdo daquela página e ficam de fora.
+    # Do preâmbulo do modelo tira-se só a capa. O resto (os <style>, o botão
+    # VOLTAR, o campo de busca) é igual em todas as páginas e vai junto.
     #
     # A tabela e o que vem depois dela (fechamento das tags e os <script> de
     # filtro) continuam sendo os de cada página: a correção mexe só no pedaço
     # que está errado.
     preambulo_modelo = partes[0]
     preambulo = preambulo_estrutural(preambulo_modelo)
-    if not preambulo:
-        print(f"❌ Não achei o <head> e o campo de busca no preâmbulo de "
-              f"'{args.modelo}'. Escolha outra página com --modelo.")
-        sys.exit(1)
 
     print(f"📄 Modelo: {args.modelo}")
     print(f"   preâmbulo do modelo: {len(preambulo_modelo)} chars")
-    print(f"   estrutura aproveitada: {len(preambulo)} chars")
-    editorial = descrever_conteudo(preambulo_modelo)
-    if editorial:
-        print(f"   descartado (é do modelo): {', '.join(editorial)}")
+    print(f"   capa removida:       {len(preambulo_modelo) - len(preambulo)} chars")
+    print(f"   a aplicar:           {len(preambulo)} chars")
+
+    if args.mostrar_modelo:
+        print("\n--- preâmbulo a aplicar ---")
+        print(preambulo)
+        print("--- fim ---\n")
+
+    problemas = conferir_preambulo(preambulo)
+    if problemas:
+        print(f"\n❌ O preâmbulo de '{args.modelo}' não passou na conferência:")
+        for p in problemas:
+            print(f"   - {p}")
+        print("\n   Nada foi alterado. Rode com --mostrar-modelo para ver o "
+              "preâmbulo, ou escolha outra página com --modelo.")
+        sys.exit(1)
 
     # --- Verifica cada página ---
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
