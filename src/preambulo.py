@@ -80,41 +80,78 @@ def conteudo_do_preambulo(preambulo):
     return imagens, texto
 
 
+def texto_editorial(preambulo):
+    """
+    O texto de apresentação do preâmbulo, sem o rótulo do botão VOLTAR.
+
+    VOLTAR é navegação, igual em todas as páginas; a descrição do setor é
+    conteúdo de cada uma. Separar os dois é o que permite copiar a estrutura
+    sem levar a descrição junto.
+    """
+    _, texto = conteudo_do_preambulo(preambulo)
+    return re.sub(r"\bVOLTAR\b", "", texto, flags=re.I).strip()
+
+
 def descrever_conteudo(preambulo):
     """Lista legível do que há de editorial no preâmbulo (vazia se não houver)."""
-    imagens, texto = conteudo_do_preambulo(preambulo)
+    imagens, _ = conteudo_do_preambulo(preambulo)
+    texto = texto_editorial(preambulo)
     achados = []
     if imagens:
         achados.append(f"{len(imagens)} imagem(ns)")
     if texto:
-        achados.append(f"texto ({texto[:60]!r})")
+        achados.append(f"descrição ({texto[:60]!r})")
     return achados
+
+
+def _remover_bloco(preambulo, nome, so_com_texto=False):
+    """
+    Tira do preâmbulo os blocos <!-- wp:nome --> ... <!-- /wp:nome -->.
+
+    Com so_com_texto, preserva os blocos vazios — parágrafos vazios são
+    espaçadores de layout, não conteúdo.
+    """
+    padrao = rf"<!--\s*wp:{nome}\b.*?<!--\s*/wp:{nome}\s*-->\s*"
+
+    def descartar(casamento):
+        if not so_com_texto:
+            return ""
+        texto = re.sub(r"<[^>]+>", " ", casamento.group(0))
+        return "" if texto.strip() else casamento.group(0)
+
+    return re.sub(padrao, descartar, preambulo, flags=re.S | re.I)
 
 
 def preambulo_estrutural(preambulo):
     """
-    O preâmbulo do modelo sem a capa — tudo o mais é mantido como está.
+    O preâmbulo do modelo sem o que é conteúdo daquela página.
 
-    Do preâmbulo, só o bloco de capa (wp:cover, com a imagem e o título) é
-    conteúdo daquela página. Os <style>, o botão VOLTAR e a abertura de
-    <body>/<div> com o campo de busca são iguais em todas e ficam.
+    Sai:  wp:cover      a imagem de capa e o título
+          wp:paragraph  a descrição do setor (os vazios ficam, são espaçadores)
+          wp:heading    títulos soltos
+
+    Fica: os <style>, o botão VOLTAR e a abertura de <body>/<div> com o campo
+          de busca — iguais em todas as páginas.
 
     A remoção é cirúrgica, e não uma remontagem por lista de permissão: a
     estrutura exata importa (são blocos do Gutenberg, e os <style> estão
     espalhados em mais de um <head>), e tentar remontá-la já derrubou o CSS da
     tabela uma vez. Confira o resultado com conferir_preambulo() antes de usar.
     """
-    return re.sub(r"<!--\s*wp:cover\b.*?<!--\s*/wp:cover\s*-->\s*", "",
-                  preambulo, flags=re.S | re.I)
+    limpo = _remover_bloco(preambulo, "cover")
+    limpo = _remover_bloco(limpo, "paragraph", so_com_texto=True)
+    limpo = _remover_bloco(limpo, "heading", so_com_texto=True)
+    return limpo
 
 
 def conferir_preambulo(preambulo):
     """
     Confere o preâmbulo pronto antes de gravar. Lista os problemas achados.
 
-    Duas coisas já foram para o site erradas daqui: a capa do modelo em todas
-    as páginas, e o CSS da tabela sumindo numa remontagem. Cada uma virou uma
-    checagem — melhor abortar do que descobrir depois, olhando o site.
+    Três coisas já foram para o site erradas daqui: a capa do modelo em todas
+    as páginas, o CSS da tabela sumindo numa remontagem, e a descrição do
+    modelo sobrevivendo à remoção da capa. Cada uma virou uma checagem — melhor
+    abortar do que descobrir depois, olhando o site.
     """
     problemas = []
 
@@ -126,17 +163,34 @@ def conferir_preambulo(preambulo):
     if imagens:
         problemas.append(f"a capa do modelo continua aqui: {imagens[0][:80]}")
 
+    texto = texto_editorial(preambulo)
+    if texto:
+        problemas.append(f"a descrição do modelo continua aqui: {texto[:70]!r}")
+
     return problemas
 
 
 def herdou_do_modelo(preambulo_pagina, preambulo_modelo):
     """
-    True se a página está exibindo a capa e o texto da página modelo.
+    True se a página está exibindo a capa OU a descrição da página modelo.
 
     Serve para desfazer a cópia indevida sem tocar nas páginas que têm capa e
-    descrição próprias: só reconhece quando o conteúdo é idêntico ao do modelo.
+    descrição próprias: só reconhece o que for idêntico ao do modelo.
+
+    As duas metades são testadas em separado de propósito. Uma correção antiga
+    tirou a capa e deixou a descrição para trás — e um teste que exigisse as
+    duas iguais não teria reconhecido essas páginas para consertá-las.
     """
-    da_pagina = conteudo_do_preambulo(preambulo_pagina)
-    if da_pagina == ((), ""):
+    imagens_pagina, _ = conteudo_do_preambulo(preambulo_pagina)
+    imagens_modelo, _ = conteudo_do_preambulo(preambulo_modelo)
+    if imagens_pagina and imagens_pagina == imagens_modelo:
+        return True
+
+    # Contenção, e não igualdade: uma página pode ter ficado com só um pedaço
+    # do que veio do modelo — foi o caso das que perderam a capa e mantiveram
+    # a descrição. O mínimo de caracteres evita casar por acaso.
+    texto_pagina = texto_editorial(preambulo_pagina)
+    texto_modelo = texto_editorial(preambulo_modelo)
+    if len(texto_pagina) < 20 or not texto_modelo:
         return False
-    return da_pagina == conteudo_do_preambulo(preambulo_modelo)
+    return texto_pagina in texto_modelo
