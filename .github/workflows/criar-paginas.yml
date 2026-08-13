@@ -40,6 +40,10 @@ on:
         description: 'Acrescentar os botões das 4 abas novas em /startups/ (faz backup antes)'
         type: boolean
         default: false
+      corrigir_preambulo:
+        description: 'Padronizar CSS das tabelas e campo de busca nas páginas que estão sem'
+        type: boolean
+        default: false
 
 jobs:
   criar:
@@ -154,6 +158,21 @@ jobs:
           path: backups/
           if-no-files-found: warn
           retention-days: 90
+
+      # O CSS que centraliza as colunas e o campo de busca ficam no conteudo da
+      # pagina, ANTES do marcador -- fora do alcance da publicacao. Paginas
+      # criadas pela automacao nasciam sem eles.
+      - name: Padronizar preâmbulo das páginas
+        if: ${{ inputs.corrigir_preambulo == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="--dry-run"
+          fi
+          python corrigir_preambulo.py $ARGS
 
       - name: Commit do config atualizado
         if: ${{ inputs.commit == true && inputs.dry_run == false }}

@@ -32,10 +32,85 @@ CABECALHOS = {
     "Content-Type": "application/json",
 }
 
-# Conteúdo inicial da página. O marcador é obrigatório: atualizador_WP.py
-# substitui tudo entre ele e o </table> seguinte. Sem o marcador, a publicação
-# falha com "não foi encontrado o marcador".
-CONTEUDO_INICIAL = """<!-- COMECA ATUALIZAR DAQUI -->
+# Conteúdo inicial da página.
+#
+# O marcador é obrigatório: atualizador_WP.py substitui tudo entre ele e o
+# </table> seguinte. Sem o marcador, a publicação falha.
+#
+# O que vem ANTES do marcador também importa, e não é gerado pela publicação:
+# o <style> que centraliza as colunas e o campo de busca. As primeiras páginas
+# criadas por este script nasceram sem eles, e ficaram com as colunas alinhadas
+# à esquerda e sem o campo "Busque por uma organização".
+#
+# Se este preâmbulo divergir do das páginas antigas, use corrigir_preambulo.py
+# para copiar o de uma página modelo.
+CONTEUDO_INICIAL = """<head>
+<style>
+/* Estilização da tooltip */
+.tooltip-inner {
+  max-width: 200px;
+  background-color: #f0f0f0;
+  color: #333;
+  padding: 10px;
+  border-radius: 5px;
+  white-space: pre-wrap;
+}
+
+/* Primeira coluna: nome da organização, alinhado à esquerda */
+#organization_table td:first-child {
+  width: 600px;
+  height: 25.19px;
+}
+
+/* Demais colunas: centralizadas */
+#organization_table td:nth-child(2) {
+  text-align: center;
+  width: 55px;
+}
+
+#organization_table td:nth-child(3) {
+  text-align: center;
+}
+
+#organization_table td:nth-child(4) {
+  text-align: center;
+}
+
+/* Cabeçalho */
+#organization_table th:first-child {
+  width: 300px;
+  height: 40px;
+  background-color: #f4f8fb;
+  text-align: left;
+  font-weight: bold;
+}
+
+#organization_table th:nth-child(2) {
+  text-align: center;
+  width: 55px;
+}
+
+#organization_table th:nth-child(3) {
+  text-align: center;
+  width: 150px;
+}
+
+#organization_table th:nth-child(4) {
+  text-align: center;
+  width: 200px;
+  max-width: 200px;
+}
+
+#categoriaSelect {
+  width: 170px;
+}
+</style>
+</head>
+
+<body>
+<div>
+<input class="form-control" id="search" placeholder="Busque por uma organização" type="text"/>
+<!-- COMECA ATUALIZAR DAQUI -->
 <div class="p-2 mr-2" id="count"><p><b>Total de organizações:</b> 0</p></div>
 <table class="table" id="organization_table">
 <thead>
@@ -43,7 +118,9 @@ CONTEUDO_INICIAL = """<!-- COMECA ATUALIZAR DAQUI -->
 </thead>
 <tbody>
 </tbody>
-</table>"""
+</table>
+</div>
+</body>"""
 
 
 def _credenciais():
