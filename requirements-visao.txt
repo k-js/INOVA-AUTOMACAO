@@ -4,10 +4,17 @@
 # instalar. Só o workflow das capas as instala; a publicação diária não carrega
 # esse peso.
 #
-# --index-url (e nao --extra-index-url): com o extra, o pip ainda podia
-# preferir a versao do PyPI, que vem com CUDA e pesa ~800 MB a mais sem
-# nenhuma utilidade num runner sem GPU.
+# Os DOIS indices sao necessarios, nesta ordem:
+#
+#   --index-url        o do PyTorch vem primeiro para o torch resolver na
+#                      versao +cpu. So com --extra-index-url o pip ainda podia
+#                      trazer a build com CUDA do PyPI, ~800 MB inuteis num
+#                      runner sem GPU.
+#   --extra-index-url  o PyPI de volta, senao transformers e Pillow nao sao
+#                      encontrados: o indice do PyTorch so hospeda os pacotes
+#                      dele.
 --index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
 torch
 transformers
 Pillow
