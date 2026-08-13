@@ -141,7 +141,26 @@ def preambulo_estrutural(preambulo):
     limpo = _remover_bloco(preambulo, "cover")
     limpo = _remover_bloco(limpo, "paragraph", so_com_texto=True)
     limpo = _remover_bloco(limpo, "heading", so_com_texto=True)
-    return limpo
+    return _remover_texto_solto(limpo)
+
+
+def _remover_texto_solto(preambulo):
+    """
+    Rede de segurança: tira <p> e <h1>–<h6> com texto que sobraram.
+
+    Nem todo conteúdo do WordPress está embrulhado em comentários de bloco —
+    páginas antigas, ou trechos editados no modo HTML, guardam parágrafos
+    soltos. Sem isto, a descrição do modelo escapa da limpeza.
+
+    O botão VOLTAR não é afetado: ele mora num <a> dentro do bloco de botões,
+    não num parágrafo. Elementos vazios ficam, são espaçadores de layout.
+    """
+    def descartar(casamento):
+        texto = re.sub(r"<[^>]+>", " ", casamento.group(0)).replace("&nbsp;", " ")
+        return "" if texto.strip() else casamento.group(0)
+
+    return re.sub(r"<(p|h[1-6])\b[^>]*>.*?</\1>\s*", descartar,
+                  preambulo, flags=re.S | re.I)
 
 
 def conferir_preambulo(preambulo):

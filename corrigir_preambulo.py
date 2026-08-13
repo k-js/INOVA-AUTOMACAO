@@ -175,8 +175,13 @@ def main():
         print(f"\n❌ O preâmbulo de '{args.modelo}' não passou na conferência:")
         for p in problemas:
             print(f"   - {p}")
-        print("\n   Nada foi alterado. Rode com --mostrar-modelo para ver o "
-              "preâmbulo, ou escolha outra página com --modelo.")
+        # O preâmbulo vai para o log mesmo sem --mostrar-modelo: sem ver o
+        # HTML não dá para descobrir por que a limpeza não deu conta.
+        if not args.mostrar_modelo:
+            print("\n--- preâmbulo que seria aplicado ---")
+            print(preambulo)
+            print("--- fim ---")
+        print("\n   Nada foi alterado.")
         sys.exit(1)
 
     # --- Verifica cada página ---
