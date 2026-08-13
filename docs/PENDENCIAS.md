@@ -138,11 +138,12 @@ tenha a coluna `PAÍS` na planilha. Confirmar se é intencional.
 
 ---
 
-## 7. Aba `TESTE` publica no site
+## 7. Aba `TESTE` publica no site — RESOLVIDO
 
-A aba `TESTE` está mapeada para `https://inova.ufpr.br/teste/` e é publicada
-normalmente quando marcada em `CHECAR ABAS`. Se for aba de rascunho, deveria
-sair de `ABAS_LINKS`.
+A aba `TESTE` estava mapeada em `ABAS_LINKS` para `https://inova.ufpr.br/teste/`,
+página que nunca existiu: toda execução gastava uma tentativa nela e terminava
+com um aviso. Confirmado que é aba de teste da equipe e não vira página do
+site, foi movida para `ABAS_IGNORADAS`.
 
 ---
 

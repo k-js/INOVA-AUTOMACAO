@@ -95,7 +95,6 @@ ABAS_LINKS = {
     "RETAILTECHS": "https://inova.ufpr.br/retailtechs-2/",
     "SOCIALTECHS": "https://inova.ufpr.br/socialtechs/",
     "TECHS": "https://inova.ufpr.br/techs/",
-    "TESTE": "https://inova.ufpr.br/teste/",
     "TRAVELTECHS": "https://inova.ufpr.br/traveltechs/",
     "VÍDEOS E PODCASTS": "https://inova.ufpr.br/cursos-e-podcasts-de-empreendedorismo/",
     "WATERTECHS": "https://inova.ufpr.br/watertechs/",
@@ -116,6 +115,10 @@ ABAS_IGNORADAS = {
     "MAPA POWER BI",
     "Centros de Pesquisa",
     "deeptechs comparativo",
+    # Aba de teste da equipe: não é página do site. Ficou mapeada em
+    # ABAS_LINKS por engano, apontando para /teste/, que nunca existiu — cada
+    # execução gastava uma tentativa nela e terminava com um aviso.
+    "TESTE",
     # Aguardando criação da página no site
     "AGTECHS",
     "BEAUTYTECHS",
@@ -163,7 +166,6 @@ ABAS_PAIS = {
     "INSTITUTOS DE PESQUISA E CENTROS DE T&I",
     "POLÍTICAS DE INOVAÇÃO",
     "PROPRIEDADE INTELECTUAL",
-    "TESTE",
 }
 
 # Abas sem relação geográfica: o filtro de Estado/Cidade/País é removido
