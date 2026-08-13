@@ -1,0 +1,125 @@
+name: Descrições das páginas
+
+# Escreve a frase que aparece embaixo da capa, acima da tabela.
+#
+# O texto sai das CATEGORIAS que a própria página já lista — o modelo reescreve
+# um dado que voce tem, nao busca conhecimento proprio sobre o setor.
+#
+# Sao DUAS execucoes, com voce no meio:
+#
+#   1. marque "propor"  -> gera descricoes.json e faz commit dele
+#   2. leia o arquivo no repositorio e corrija o que quiser
+#   3. marque "aplicar" -> grava no site exatamente o que esta no arquivo
+#
+# Nada e gerado na etapa 3: ela so copia o arquivo para o site. Assim nenhuma
+# frase chega ao ar sem alguem ter lido.
+#
+# Precisa do Secret GROQ_API_KEY (console.groq.com -> API Keys) apenas na
+# etapa 1.
+
+on:
+  workflow_dispatch:
+    inputs:
+      listar_modelos:
+        description: 'Só listar os modelos que a chave da Groq alcança'
+        type: boolean
+        default: false
+      propor:
+        description: 'Etapa 1 — gerar as propostas em descricoes.json (não toca no site)'
+        type: boolean
+        default: false
+      aplicar:
+        description: 'Etapa 2 — gravar no site o que está em descricoes.json'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Com "aplicar": mostrar o que faria, sem gravar'
+        type: boolean
+        default: true
+      modelo:
+        description: 'Modelo da Groq (vazio = o padrão do código)'
+        type: string
+        default: ''
+
+jobs:
+  descricoes:
+    runs-on: ubuntu-latest
+
+    # Necessário para commitar o descricoes.json gerado na etapa 1.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # O catalogo gratuito da Groq muda; este passo mostra o que a sua chave
+      # alcanca hoje, para preencher o campo "modelo".
+      - name: Listar modelos disponíveis
+        if: ${{ inputs.listar_modelos == true }}
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python gerar_descricoes.py --listar-modelos
+
+      - name: Etapa 1 — propor descrições
+        if: ${{ inputs.propor == true }}
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS="--propor"
+          if [ -n "${{ inputs.modelo }}" ]; then
+            ARGS="$ARGS --modelo ${{ inputs.modelo }}"
+          fi
+          python gerar_descricoes.py $ARGS
+
+      # O commit e o que permite voce ler e corrigir as frases no proprio
+      # GitHub antes da etapa 2.
+      - name: Commit das propostas
+        if: ${{ inputs.propor == true }}
+        run: |
+          if git diff --quiet descricoes.json 2>/dev/null && [ -f descricoes.json ]; then
+            echo "descricoes.json sem mudanças — nada a commitar."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add descricoes.json
+          git commit -m "Propostas de descricao geradas pela Action
+
+          REVISE antes de aplicar: compare cada frase com as categorias
+          listadas ao lado dela no arquivo."
+          git push
+
+      - name: Etapa 2 — aplicar descrições
+        if: ${{ inputs.aplicar == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS="--aplicar"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python gerar_descricoes.py $ARGS
+
+      - name: Guardar backup das páginas
+        if: ${{ inputs.aplicar == true && inputs.dry_run == false }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-descricoes
+          path: backups/
+          if-no-files-found: warn
+          retention-days: 90
