@@ -181,6 +181,49 @@ def checar_abas(nomes_reais):
         print(f"   {len(nao_mapeadas)} aba(s) na planilha sem página mapeada.")
 
 
+def ler_cabecalhos(planilha, abas):
+    """
+    Lê a primeira linha de várias abas em UMA chamada à API.
+
+    Ler aba por aba custava duas chamadas cada (worksheet + row_values), ou
+    seja ~76 para as 38 abas mapeadas. Como a API do Sheets permite 60 leituras
+    por minuto, as últimas abas em ordem alfabética falhavam com HTTP 429 —
+    todo dia, e reportadas como erro de planilha.
+
+    batch_get traz todos os intervalos de uma vez. Se ainda assim falhar, cai
+    para a leitura individual, que ao menos consegue validar parte das abas.
+
+    Retorna {nome_da_aba: [colunas]}.
+    """
+    intervalos = [f"'{aba}'!1:1" for aba in abas]
+
+    try:
+        resultado = planilha.values_batch_get(intervalos)
+        faixas = resultado.get("valueRanges", [])
+        cabecalhos = {}
+        for aba, faixa in zip(abas, faixas):
+            valores = faixa.get("values", [[]])
+            cabecalhos[aba] = valores[0] if valores else []
+        return cabecalhos
+    except Exception as e:
+        print(f"   (leitura em lote indisponível: {e})")
+        print("   Lendo aba por aba — pode estourar a cota da API.")
+
+    cabecalhos = {}
+    for aba in abas:
+        try:
+            cabecalhos[aba] = planilha.worksheet(aba).row_values(1)
+        except Exception as e:
+            # Cota estourada não é problema da planilha: reportar como erro
+            # criaria alarme falso diário. Vira aviso.
+            if "429" in str(e):
+                aviso(f"Aba '{aba}' não pôde ser verificada: cota da API do "
+                      f"Sheets esgotada. Não indica problema na planilha.")
+            else:
+                erro(f"Não foi possível ler o cabeçalho da aba '{aba}': {e}")
+    return cabecalhos
+
+
 def checar_colunas(planilha, nomes_reais):
     """Confere, aba por aba, se as colunas que o código usa ainda existem."""
     print("\n📋 COLUNAS")
@@ -188,12 +231,12 @@ def checar_colunas(planilha, nomes_reais):
     a_verificar = [a for a in config.ABAS_LINKS if a in nomes_reais]
     problemas = 0
 
+    cabecalhos = ler_cabecalhos(planilha, sorted(a_verificar))
+
     for nome_aba in sorted(a_verificar):
-        try:
-            cabecalho = planilha.worksheet(nome_aba).row_values(1)
-        except Exception as e:
-            erro(f"Não foi possível ler o cabeçalho da aba '{nome_aba}': {e}")
-            continue
+        cabecalho = cabecalhos.get(nome_aba)
+        if cabecalho is None:
+            continue  # já reportado por ler_cabecalhos
 
         cabecalho = [c.strip() for c in cabecalho if c and c.strip()]
         if not cabecalho:
@@ -264,7 +307,13 @@ def checar_abas_selecionadas(planilha, nomes_reais):
     try:
         selecionadas = planilha.worksheet(config.ABA_CONTROLE).col_values(1)[1:]
     except Exception as e:
-        erro(f"Não foi possível ler '{config.ABA_CONTROLE}': {e}")
+        # Cota da API esgotada não é problema da planilha — vira aviso, não
+        # erro, para não gerar alarme falso diário.
+        if "429" in str(e):
+            aviso(f"'{config.ABA_CONTROLE}' não pôde ser lida: cota da API do "
+                  f"Sheets esgotada. Rode a validação de novo em um minuto.")
+        else:
+            erro(f"Não foi possível ler '{config.ABA_CONTROLE}': {e}")
         return
 
     selecionadas = [a.strip() for a in selecionadas if a and a.strip()]
