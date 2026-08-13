@@ -1,0 +1,41 @@
+{
+ "gerado_em": "2026-08-13T00:00:00",
+ "modelo": "llama-3.3-70b-versatile",
+ "revisao": "TRAVELTECHS reescrita na revisão: a frase original citava transporte, gestão turística e agendamento, ausentes das categorias da página.",
+ "descricoes": {
+  "FASHIONTECHS": {
+   "texto": "FASHIONTECHS são empresas que atuam na interseção da moda e da tecnologia, integrando inovações tecnológicas ao setor de varejo e comércio.",
+   "categorias": [
+    "Varejo (3)",
+    "Comércio e Varejo (1)"
+   ]
+  },
+  "GAMETECHS": {
+   "texto": "GAMETECHS são empresas que atuam no desenvolvimento de soluções tecnológicas para o setor de jogos e entretenimento, incluindo iGaming.",
+   "categorias": [
+    "Desenvolvimento (6)",
+    "iGaming (1)"
+   ]
+  },
+  "INSURTECHS": {
+   "texto": "INSURTECHS são empresas que desenvolvem soluções tecnológicas inovadoras para o setor de seguros, abrangendo áreas como tecnologia corporativa, veículos, agricultura, saúde e outros ramos de seguro.",
+   "categorias": [
+    "Tecnologia Corporativa (4)",
+    "Veículos (2)",
+    "Agricultura (2)",
+    "Seguros (1)",
+    "Saúde, Vida (1)"
+   ]
+  },
+  "TRAVELTECHS": {
+   "texto": "TRAVELTECHS são empresas que desenvolvem soluções tecnológicas para o setor de viagens, abrangendo hospedagem, destinos e viagens corporativas.",
+   "categorias": [
+    "Viagens (5)",
+    "Software e Cloud (1)",
+    "Destinos (1)",
+    "Viagens Corporativas (1)",
+    "Hospedagem (1)"
+   ]
+  }
+ }
+}
