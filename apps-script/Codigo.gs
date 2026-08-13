@@ -331,26 +331,6 @@ function ehStatusPendente(valor) {
   return _STATUS_PENDENTES_NORM.has(normalizarTexto(valor));
 }
 
-/**
- * Converte número de coluna em letra de planilha (1 -> A, 26 -> Z, 27 -> AA).
- *
- * Necessário para montar endereços no formato aceito por getRangeList(), que
- * recebe notação A1 e não índices numéricos.
- *
- * @param {number} numero Número da coluna, base 1.
- * @return {string} Letra correspondente em notação A1.
- */
-function colunaParaLetra(numero) {
-  var letra = '';
-  while (numero > 0) {
-    var resto = (numero - 1) % 26;
-    letra = String.fromCharCode(65 + resto) + letra;
-    numero = Math.floor((numero - 1) / 26);
-  }
-  return letra;
-}
-
-
 // =====================================================================
 // 1. Lista, em "CHECAR ABAS", as abas com alterações pendentes
 // =====================================================================
@@ -582,31 +562,30 @@ function padronizarAbas() {
 
     var nomeVals = sheet.getRange(2, idxNome + 1, lastRow - 1, 1).getValues();
 
-    // Endereços das células a alterar: só as linhas em que a organização
-    // está em branco.
-    var letraStatus = colunaParaLetra(idxStatus + 1);
-    var celulasVazias = [];
+    // A coluna STATUS inteira é lida, alterada em memória e gravada de volta
+    // em uma única chamada. As linhas com organização preenchida mantêm o
+    // valor e a validação que já tinham — só as vazias mudam.
+    //
+    // setDataValidation (singular) só existe em Range, não em RangeList: por
+    // isso o trabalho é feito sobre a matriz da coluna, e não célula a célula.
+    // Numa aba com 600 linhas, isso troca 1.200 chamadas à API por 2.
+    var colunaStatus = sheet.getRange(2, idxStatus + 1, lastRow - 1, 1);
+    var statusVals = colunaStatus.getValues();
+    var validacoes = colunaStatus.getDataValidations();
+    var alterou = false;
+
     for (var i = 0; i < nomeVals.length; i++) {
       if (String(nomeVals[i][0]).trim() === '') {
-        celulasVazias.push(letraStatus + (2 + i));
+        validacoes[i][0] = statusValidation;
+        statusVals[i][0] = '';
+        alterou = true;
       }
     }
 
-    if (celulasVazias.length === 0) return;
+    if (!alterou) return;
 
-    // Aplica a validação nas células STATUS correspondentes e limpa o valor
-    // atual, deixando-as em branco.
-
-    // RangeList aplica a operação a todas essas células em uma única chamada à
-    // API, em vez de duas por linha — numa aba com 600 linhas vazias, 1.200
-    // chamadas viram 2.
-    //
-    // Só as células listadas são afetadas: as linhas já preenchidas continuam
-    // intocadas. O ganho vem de agrupar as chamadas, não de escrever em mais
-    // células.
-    var listaCelulas = sheet.getRangeList(celulasVazias);
-    listaCelulas.setDataValidation(statusValidation);
-    listaCelulas.setValue('');
+    colunaStatus.setDataValidations(validacoes);
+    colunaStatus.setValues(statusVals);
   });
 
   SpreadsheetApp.getActive().toast('✅ Formatação padronizada.');
