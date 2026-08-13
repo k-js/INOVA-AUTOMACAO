@@ -64,16 +64,53 @@ def atualizar_pagina_wp(pagina_url, nova_tabela_html):
         print("Conteúdo 'raw' não encontrado. Verifique permissões do usuário.")
         return False
 
-    pattern = r'<!-- COMECA ATUALIZAR DAQUI -->.*?</table>'
+    # Substitui do marcador até o fim do último </table>, incluindo os blocos
+    # de <script> que venham logo depois.
+    #
+    # O padrão anterior era '.*?</table>' — não-guloso, parava no primeiro
+    # </table>. Como o HTML gerado põe os scripts DENTRO da tabela, isso
+    # funcionava na maior parte dos casos; mas quando uma versão anterior da
+    # página tinha scripts FORA dela, esses sobreviviam à substituição e se
+    # acumulavam a cada publicação.
+    #
+    # O efeito era invisível no HTML e quebrava a página: cada carga extra do
+    # jQuery substitui a instância e descarta os handlers já registrados,
+    # inclusive o document.ready que popula os filtros. Os selects apareciam
+    # vazios. /periodicos-cientificos/ tinha 2 cópias do jQuery e
+    # /cursos-e-podcasts-de-empreendedorismo/ chegou a 9.
+    pattern = (
+        r'<!-- COMECA ATUALIZAR DAQUI -->'
+        r'.*</table>'              # guloso: vai até o ÚLTIMO </table>
+        r'(?:\s*<script[\s\S]*?</script>)*'  # e os scripts que sobraram depois
+    )
     novo_conteudo, count = re.subn(
         pattern,
-        f'{nova_tabela_html}',
+        lambda _: nova_tabela_html,   # lambda: evita interpretar \1, \g<> etc.
         conteudo,
         flags=re.DOTALL
     )
 
     if count == 0:
         print("Aviso: não foi encontrado o marcador '<!-- COMECA ATUALIZAR DAQUI -->' com tabela associada.")
+        return False
+
+    # Rede de segurança: o padrão é guloso e vai até o ÚLTIMO </table> da
+    # página. Se alguém acrescentar outra tabela DEPOIS do bloco automático,
+    # ela seria engolida pela substituição.
+    #
+    # Hoje nenhuma página tem tabela extra, mas isso pode mudar a qualquer
+    # edição manual. Melhor recusar a publicação do que apagar conteúdo que
+    # alguém escreveu — o conteúdo perdido não seria recuperável pelo log.
+    trecho_antigo = re.search(pattern, conteudo, flags=re.DOTALL).group(0)
+    tabelas_removidas = len(re.findall(r'<table', trecho_antigo))
+
+    if tabelas_removidas > 1:
+        print(f"❌ A área a substituir contém {tabelas_removidas} tabelas, e a "
+              f"automação gera apenas uma.")
+        print("   Isso indica conteúdo manual depois do bloco automático, que "
+              "seria apagado.")
+        print("   Publicação cancelada. Revise a página no WordPress: o bloco "
+              "automático deve ser o último elemento antes do rodapé.")
         return False
 
     data = {"content": novo_conteudo}
