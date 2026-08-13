@@ -115,6 +115,31 @@ def tem_preambulo(conteudo):
     return tem_busca and tem_css
 
 
+def conteudo_a_perder(preambulo):
+    """
+    O que a substituição do preâmbulo apagaria além do CSS e do campo de busca.
+
+    O preâmbulo padrão só tem o <head> com o <style>, a abertura de
+    <body>/<div> e o campo de busca. Se a página tiver imagem de capa ou um
+    texto de apresentação ali, trocar o preâmbulo os apaga — e é melhor parar
+    e avisar do que descobrir isso depois, no site no ar.
+
+    Retorna a lista do que seria perdido (vazia se não houver nada).
+    """
+    corpo = re.sub(r"<head>.*?</head>", "", preambulo, flags=re.S | re.I)
+    corpo = re.sub(r"<style>.*?</style>", "", corpo, flags=re.S | re.I)
+
+    achados = []
+    if re.search(r"<img\b", corpo, re.I):
+        achados.append("imagem")
+
+    texto = re.sub(r"<[^>]+>", " ", corpo).replace("&nbsp;", " ").strip()
+    if texto:
+        achados.append(f"texto ({texto[:60]!r})")
+
+    return achados
+
+
 def salvar_backup(slug, pagina, pasta):
     os.makedirs(pasta, exist_ok=True)
     caminho = os.path.join(pasta, f"{slug}.json")
@@ -134,6 +159,9 @@ def main():
                         help="mostra o que faria, sem alterar as páginas")
     parser.add_argument("--modelo", default=MODELO_PADRAO,
                         help=f"aba cuja página serve de modelo (padrão: {MODELO_PADRAO})")
+    parser.add_argument("--forcar", action="store_true",
+                        help="corrige mesmo as páginas cujo preâmbulo tem "
+                             "conteúdo próprio (capa/descrição) — ele será perdido")
     args = parser.parse_args()
 
     print("=" * 64)
@@ -157,7 +185,10 @@ def main():
         print(f"❌ A página modelo não tem o marcador {MARCADOR}.")
         sys.exit(1)
 
-    preambulo, _, sufixo = partes
+    # Só o PREÂMBULO vem do modelo. A tabela e o que vem depois dela (as tags
+    # de fechamento e os <script> de filtro) continuam sendo os de cada página:
+    # a correção mexe apenas no pedaço que está errado.
+    preambulo = partes[0]
 
     if not tem_preambulo(conteudo_modelo):
         print(f"❌ A página modelo '{args.modelo}' não tem o CSS e o campo de "
@@ -165,7 +196,7 @@ def main():
         sys.exit(1)
 
     print(f"📄 Modelo: {args.modelo}")
-    print(f"   preâmbulo: {len(preambulo)} chars | sufixo: {len(sufixo)} chars")
+    print(f"   preâmbulo: {len(preambulo)} chars")
 
     # --- Verifica cada página ---
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -194,7 +225,9 @@ def main():
             ok += 1
             continue
 
-        sem_preambulo.append((aba, slug, pagina, conteudo))
+        partes_pagina = partir_conteudo(conteudo)
+        perdas = conteudo_a_perder(partes_pagina[0]) if partes_pagina else []
+        sem_preambulo.append((aba, slug, pagina, conteudo, perdas))
 
     print(f"   {ok} página(s) já com o preâmbulo correto")
 
@@ -203,21 +236,34 @@ def main():
         return
 
     print(f"\n🎯 {len(sem_preambulo)} página(s) a corrigir:")
-    for aba, slug, _, _ in sem_preambulo:
-        print(f"   - {aba}  (/{slug}/)")
+    for aba, slug, _, _, perdas in sem_preambulo:
+        marca = f"  ⚠️  perderia: {', '.join(perdas)}" if perdas else ""
+        print(f"   - {aba}  (/{slug}/){marca}")
+
+    if any(perdas for *_, perdas in sem_preambulo) and not args.forcar:
+        print("\n⚠️  As páginas marcadas têm conteúdo próprio antes da tabela "
+              "(capa ou descrição).\n"
+              "   Trocar o preâmbulo apagaria esse conteúdo, então elas serão "
+              "puladas.\n"
+              "   Use --forcar se quiser sobrescrever mesmo assim.")
 
     if args.dry_run:
         print("\n(--dry-run: nada foi alterado)")
         return
 
     print()
-    for aba, slug, pagina, conteudo in sem_preambulo:
+    for aba, slug, pagina, conteudo, perdas in sem_preambulo:
+        if perdas and not args.forcar:
+            print(f"   ⏭️  {aba}: pulada (perderia {', '.join(perdas)})")
+            continue
+
         partes = partir_conteudo(conteudo)
         if not partes:
             print(f"   ✗ {aba}: sem o marcador, pulando")
             continue
 
-        _, bloco, _ = partes
+        # sufixo da PRÓPRIA página: preserva os <script> de filtro dela.
+        _, bloco, sufixo = partes
         novo_conteudo = preambulo + bloco + sufixo
 
         backup = salvar_backup(slug, pagina, pasta_backup)
