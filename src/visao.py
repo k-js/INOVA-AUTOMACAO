@@ -7,7 +7,12 @@ imagem. Então a análise roda AQUI, dentro do próprio Action: sem chave, sem
 cota, sem custo. E, ao contrário de julgar pela legenda que o banco de imagens
 fornece, isto olha a foto.
 
-São três verificações, com papéis diferentes:
+São quatro verificações, com papéis diferentes:
+
+    saturação   reprova preto e branco e fotos dessaturadas, que destoariam
+                das 36 capas coloridas. É só aritmética sobre os pixels, sem
+                modelo — e por isso roda primeiro, descartando antes de
+                carregar o que é caro.
 
     relevância  portão: a imagem é uma foto do assunto, e não marca d'água,
                 colagem ou captura de tela? Reprova; não ordena.
@@ -35,6 +40,12 @@ import io
 
 MODELO_CLIP = "openai/clip-vit-base-patch32"
 MODELO_NSFW = "Falconsai/nsfw_image_detection"
+
+# Abaixo desta saturação média (0 a 255) a foto é tratada como preto e branco
+# ou dessaturada demais, e reprovada: uma capa assim destoa das 36 coloridas do
+# site. Aferido em fotos reais — P&B fica em 0, sépia perto de 30, e uma foto
+# colorida comum passa de 60.
+SATURACAO_MINIMA = 25
 
 # Acima disto a imagem é reprovada por conteúdo adulto.
 LIMITE_NSFW = 0.30
@@ -165,7 +176,17 @@ def analisar(dados, consulta):
     quando ela está liberada.
     """
     resultado = {"pessoas": 0.0, "nsfw": 0.0, "relevancia": 0.0,
-                 "similaridade": 0.0, "reprovada": None}
+                 "similaridade": 0.0, "saturacao": 0.0, "reprovada": None}
+
+    # Primeiro porque é a checagem mais barata: não carrega modelo nenhum, e
+    # descarta a foto antes de gastar as três que carregam.
+    import imagem
+    resultado["saturacao"] = imagem.saturacao_media(dados)
+    if resultado["saturacao"] < SATURACAO_MINIMA:
+        resultado["reprovada"] = (
+            f"preto e branco ou dessaturada (saturação {resultado['saturacao']:.0f})"
+        )
+        return resultado
 
     resultado["nsfw"] = pontuar_nsfw(dados)
     if resultado["nsfw"] > LIMITE_NSFW:

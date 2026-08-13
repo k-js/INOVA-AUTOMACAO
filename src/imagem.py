@@ -97,6 +97,32 @@ def padronizar(dados, largura_alvo=LARGURA_ALVO):
     return saida.getvalue(), imagem.width, imagem.height
 
 
+def saturacao_media(dados, lado=256):
+    """
+    Saturação média da imagem, de 0 a 255. Zero é preto e branco.
+
+    Serve para recusar fotos dessaturadas: uma capa em preto e branco no meio
+    de 36 coloridas destoa, e isso nenhuma medida de semelhança semântica pega
+    — o CLIP achou ótima a foto em P&B escolhida para GAMETECHS.
+
+    A imagem é reduzida antes da conta: a média não muda de forma relevante e
+    o cálculo fica instantâneo.
+    """
+    from PIL import Image
+
+    imagem = Image.open(io.BytesIO(dados))
+    if imagem.mode != "RGB":
+        imagem = imagem.convert("RGB")
+    imagem.thumbnail((lado, lado))
+
+    canal_s = imagem.convert("HSV").getchannel("S")
+    histograma = canal_s.histogram()
+    total = sum(histograma)
+    if not total:
+        return 0.0
+    return sum(valor * n for valor, n in enumerate(histograma)) / total
+
+
 def nome_do_arquivo(slug):
     """Nome previsível, ao contrário do acervo atual."""
     return f"capa-{slug}.jpg"

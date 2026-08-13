@@ -11,7 +11,7 @@ O caminho:
     categorias da página  ->  termo de busca em inglês (modelo de texto)
             ->  Pexels devolve candidatas em paisagem
             ->  descarta as pequenas demais para o recorte 3:1
-            ->  visão: NSFW, portão de relevância, similaridade e pessoas
+            ->  visão: saturação, NSFW, relevância, similaridade e pessoas
             ->  ordena: sem pessoas primeiro, depois por similaridade
             ->  recorta 3:1 até 2400x800, sem ampliar
 
@@ -174,7 +174,7 @@ def analisar(args):
             marca = "✗" if resultado["reprovada"] else "•"
             print(f"   {i:>2}. {marca} sim {resultado['similaridade']:.3f}  "
                   f"rel {resultado['relevancia']:.2f}  nsfw {resultado['nsfw']:.2f}  "
-                  f"pessoas {resultado['pessoas']:.2f}  "
+                  f"pessoas {resultado['pessoas']:.2f}  sat {resultado['saturacao']:.0f}  "
                   f"{cand['largura']}x{cand['altura']}  {cand['legenda'][:44]}")
             if resultado["reprovada"]:
                 print(f"        reprovada: {resultado['reprovada']}")
@@ -217,6 +217,7 @@ def analisar(args):
                 "original": f"{cand['largura']}x{cand['altura']}",
                 "legenda": cand["legenda"],
                 "similaridade": round(res["similaridade"], 3),
+                "saturacao": round(res["saturacao"]),
                 "relevancia": round(res["relevancia"], 3),
                 "pessoas": round(res["pessoas"], 3), "nsfw": round(res["nsfw"], 3),
             },
