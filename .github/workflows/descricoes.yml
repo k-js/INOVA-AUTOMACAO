@@ -89,7 +89,17 @@ jobs:
       - name: Commit das propostas
         if: ${{ inputs.propor == true }}
         run: |
-          if git diff --quiet descricoes.json 2>/dev/null && [ -f descricoes.json ]; then
+          if [ ! -f descricoes.json ]; then
+            echo "descricoes.json não foi gerado — nada a commitar."
+            exit 0
+          fi
+
+          # O 'git add' vem ANTES da comparação de propósito. Num arquivo ainda
+          # não rastreado, 'git diff --quiet <arquivo>' devolve "sem
+          # diferenças" — a guarda concluía que não havia o que commitar e o
+          # arquivo se perdia junto com o runner.
+          git add descricoes.json
+          if git diff --cached --quiet -- descricoes.json; then
             echo "descricoes.json sem mudanças — nada a commitar."
             exit 0
           fi
