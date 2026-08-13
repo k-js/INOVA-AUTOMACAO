@@ -489,11 +489,83 @@ def repadronizar(args):
         print(f"💾 Backups em backups/repadronizar-{carimbo}/")
 
 
+def refazer_alt(args):
+    """
+    Reescreve o texto alternativo das capas, sem tocar na imagem.
+
+    Separado da repadronização porque aquela é idempotente pelo nome do
+    arquivo: uma vez que a capa virou capa-<slug>.jpg, ela é pulada, e um alt
+    ruim ficaria lá para sempre.
+
+    A base continua sendo o nome do arquivo ORIGINAL, guardado no backup da
+    repadronização — o arquivo novo se chama capa-<slug>.jpg e não descreve
+    mais nada.
+    """
+    chave_groq = os.getenv("GROQ_API_KEY")
+    if not chave_groq:
+        print("❌ GROQ_API_KEY não definida.")
+        sys.exit(1)
+
+    filtro = {a.strip().upper() for a in args.abas.split(",")} if args.abas else None
+    if not filtro:
+        print("❌ Informe --abas: reescrever o alt de todas de uma vez\n"
+              "   gastaria chamadas à toa nas que já estão boas.")
+        sys.exit(1)
+
+    for aba in sorted(filtro):
+        url = config.ABAS_LINKS.get(aba)
+        if not url:
+            print(f"   ✗ {aba}: fora de ABAS_LINKS")
+            continue
+        slug = url.rstrip("/").rsplit("/", 1)[-1]
+
+        pagina = obter_pagina(slug)
+        partes = P.partir_conteudo(pagina.get("content", {}).get("raw", "")) if pagina else None
+        if not partes:
+            print(f"   ✗ {aba}: página não encontrada ou sem marcador")
+            continue
+        bloco = capa_wp.extrair_bloco_modelo(partes[0])
+        media_id = capa_wp.media_id_do_bloco(bloco) if bloco else None
+        if not media_id:
+            print(f"   ✗ {aba}: sem bloco de capa")
+            continue
+
+        base = args.origem or capa_wp.extrair_alt(bloco)
+        if not base:
+            print(f"   ✗ {aba}: sem base para reescrever — use --origem")
+            continue
+
+        novo = descricao.alt_do_nome_do_arquivo(base, aba, chave_groq, args.modelo)
+        print(f"   {aba}")
+        print(f"      antes : {capa_wp.extrair_alt(bloco)}")
+        print(f"      agora : {novo}")
+
+        if args.dry_run or not novo:
+            print()
+            continue
+
+        resposta = rede.com_retentativa(
+            lambda: requests.post(f"{API}/media/{media_id}", auth=_auth(),
+                                  headers=CABECALHOS, json={"alt_text": novo},
+                                  timeout=30),
+            descricao=f"gravar alt da mídia {media_id}",
+        )
+        print("      ✓ gravado\n" if resposta.status_code == 200
+              else f"      ✗ falha (HTTP {resposta.status_code})\n")
+
+    if args.dry_run:
+        print("(--dry-run: nada foi alterado)")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--analisar", action="store_true",
                         help="busca, analisa e recorta — sem tocar no site")
+    parser.add_argument("--refazer-alt", action="store_true",
+                        help="reescreve o alt das abas dadas em --abas")
+    parser.add_argument("--origem", default="",
+                        help="com --refazer-alt: texto de partida (padrão: o alt atual)")
     parser.add_argument("--repadronizar", action="store_true",
                         help="recorta as capas JÁ EXISTENTES para o padrão 3:1")
     parser.add_argument("--aplicar", action="store_true",
@@ -517,6 +589,8 @@ def main():
         aplicar(args)
     elif args.repadronizar:
         repadronizar(args)
+    elif args.refazer_alt:
+        refazer_alt(args)
     else:
         parser.print_help()
 

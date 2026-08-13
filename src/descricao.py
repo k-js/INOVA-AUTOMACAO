@@ -323,7 +323,13 @@ def alt_do_nome_do_arquivo(palavras, aba, chave, modelo=None, requests_=None):
             "alternativo (alt), em português do Brasil. Uma frase curta, até "
             "120 caracteres. Use SOMENTE o que o nome já diz — não acrescente "
             "detalhes, cores, quantidades ou lugares que não estejam ali. Não "
-            "comece com 'imagem de' ou 'foto de'. Responda só com a frase."},
+            "comece com 'imagem de' ou 'foto de'.\n"
+            "Descreva pessoas apenas pelo que fazem. NÃO mencione etnia, cor "
+            "da pele, nacionalidade, idade nem gênero, mesmo que apareçam no "
+            "nome do arquivo: descrever isso não ajuda quem usa leitor de tela "
+            "e é inadequado num site institucional. 'Homem caucasiano "
+            "programando' deve virar 'Pessoa programando'.\n"
+            "Responda só com a frase."},
         {"role": "user", "content":
             f"Nome do arquivo: {palavras}\n"
             f"A imagem ilustra a página do setor {aba}.\n\nTexto alternativo:"},
