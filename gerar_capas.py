@@ -73,12 +73,25 @@ def _auth():
 
 
 def obter_pagina(slug):
-    resposta = rede.com_retentativa(
-        lambda: requests.get(
-            f"{API}/pages", params={"slug": slug, "context": "edit"},
-            auth=_auth(), headers=CABECALHOS, timeout=30),
-        descricao=f"obter página '{slug}'",
-    )
+    """
+    A página com content.raw, ou None.
+
+    Devolve None também quando a rede falha depois das retentativas, em vez de
+    interromper tudo: o site da UFPR fica intermitente de vez em quando, e uma
+    queda de segundos na primeira página não pode derrubar um percurso de
+    trinta e sete. O aviso sai no log para a falha não passar despercebida.
+    """
+    try:
+        resposta = rede.com_retentativa(
+            lambda: requests.get(
+                f"{API}/pages", params={"slug": slug, "context": "edit"},
+                auth=_auth(), headers=CABECALHOS, timeout=30),
+            descricao=f"obter página '{slug}'",
+        )
+    except requests.RequestException as erro:
+        print(f"   ⚠️  {slug}: rede falhou ({type(erro).__name__}) — pulando")
+        return None
+
     if resposta.status_code != 200:
         return None
     paginas = resposta.json()
@@ -425,7 +438,11 @@ def repadronizar(args):
             ja_ok += 1
             continue
 
-        dados = banco.baixar({"url_arquivo": url_arquivo})
+        try:
+            dados = banco.baixar({"url_arquivo": url_arquivo})
+        except Exception as erro:
+            print(f"   ✗ {aba}: baixar a capa falhou ({type(erro).__name__})")
+            continue
         from PIL import Image
         largura, altura = Image.open(io.BytesIO(dados)).size
         final_l, final_a, aviso = img.avaliar(largura, altura)
@@ -555,9 +572,13 @@ def legendar(args):
             continue
         url_imagem = resposta.json().get("source_url", "")
 
-        dados = banco.baixar({"url_arquivo": url_imagem})
-        legenda = visao.legendar(dados)
-        novo = descricao.alt_da_legenda(legenda, aba, chave_groq, args.modelo)
+        try:
+            dados = banco.baixar({"url_arquivo": url_imagem})
+            legenda = visao.legendar(dados)
+            novo = descricao.alt_da_legenda(legenda, aba, chave_groq, args.modelo)
+        except Exception as erro:
+            print(f"   ✗ {aba}: {type(erro).__name__}: {str(erro)[:70]}")
+            continue
 
         # A URL vai no log para a conferência ser um clique: abrir a imagem e
         # ler o alt proposto ao lado.
