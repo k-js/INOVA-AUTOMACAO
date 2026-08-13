@@ -94,6 +94,44 @@ def atualizar_pagina_wp(pagina_url, nova_tabela_html):
         print("Aviso: não foi encontrado o marcador '<!-- COMECA ATUALIZAR DAQUI -->' com tabela associada.")
         return False
 
+    # --- Limpeza dos blocos de script duplicados que sobraram ---
+    #
+    # O padrão acima só consome os <script> separados do </table> por espaço em
+    # branco. Em páginas antigas há uma tag de estrutura no meio:
+    #
+    #     </table>
+    #     </div>          <- fecha um div aberto ANTES do marcador
+    #     <script src="jquery">...   <- bloco antigo, sobrevivia aqui
+    #
+    # Consumir esse </div> no regex desequilibraria o HTML da página. Em vez
+    # disso, os scripts duplicados são removidos um a um DEPOIS da
+    # substituição, deixando a estrutura intacta.
+    #
+    # Só são removidos os blocos que repetem o que a automação acabou de
+    # inserir — jQuery, Bootstrap, Popper e a função populateSelects. Qualquer
+    # outro <script> da página fica onde está.
+    ASSINATURAS = ('code.jquery.com', 'cdn.jsdelivr.net',
+                   'populateSelects', 'filterTable')
+
+    fim_do_bloco = novo_conteudo.find(nova_tabela_html) + len(nova_tabela_html)
+    cauda = novo_conteudo[fim_do_bloco:]
+
+    removidos = 0
+
+    def _descartar_duplicado(m):
+        nonlocal removidos
+        if any(a in m.group(0) for a in ASSINATURAS):
+            removidos += 1
+            return ''
+        return m.group(0)
+
+    cauda_limpa = re.sub(r'<script[\s\S]*?</script>\s*', _descartar_duplicado, cauda)
+
+    if removidos:
+        novo_conteudo = novo_conteudo[:fim_do_bloco] + cauda_limpa
+        print(f"Removidos {removidos} bloco(s) de script duplicados de "
+              f"publicações anteriores.")
+
     # Rede de segurança: o padrão é guloso e vai até o ÚLTIMO </table> da
     # página. Se alguém acrescentar outra tabela DEPOIS do bloco automático,
     # ela seria engolida pela substituição.
