@@ -29,6 +29,10 @@ on:
         description: 'Com "aplicar": mostrar o que faria, sem gravar'
         type: boolean
         default: true
+      repadronizar:
+        description: 'Repadronizar as capas JÁ EXISTENTES para 3:1 (usa "dry_run" também)'
+        type: boolean
+        default: false
       abas:
         description: 'Limitar a estas abas (separadas por vírgula; vazio = todas as sem capa)'
         type: string
@@ -122,6 +126,24 @@ jobs:
           ARGS="--aplicar"
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
+          fi
+          python gerar_capas.py $ARGS
+
+      # Recorta as capas que ja existem. A foto e a mesma; muda o
+      # enquadramento. A midia antiga fica intacta na biblioteca.
+      - name: Repadronizar capas existentes
+        if: ${{ inputs.repadronizar == true }}
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS="--repadronizar"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "${{ inputs.abas }}" ]; then
+            ARGS="$ARGS --abas ${{ inputs.abas }}"
           fi
           python gerar_capas.py $ARGS
 

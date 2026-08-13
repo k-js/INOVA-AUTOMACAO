@@ -118,3 +118,48 @@ def inserir_capa(preambulo, bloco):
     antes do botão VOLTAR, da descrição e do <head> com o CSS.
     """
     return bloco + "\n\n" + preambulo.lstrip("\n")
+
+
+def extrair_alt(bloco):
+    """O texto alternativo que já está no bloco, ou string vazia."""
+    achado = re.search(r'alt="([^"]*)"', bloco)
+    return achado.group(1).strip() if achado else ""
+
+
+def media_id_do_bloco(bloco):
+    """O id da mídia referenciada pelo bloco, ou None."""
+    achado = re.search(r"wp-image-(\d+)", bloco)
+    return int(achado.group(1)) if achado else None
+
+
+def palavras_do_arquivo(nome):
+    """
+    As palavras aproveitáveis do nome do arquivo de uma imagem.
+
+    Serve de base para o texto alternativo das capas antigas, que estão todas
+    com alt vazio. Os nomes costumam descrever a foto — 'plant-growing-from-
+    soil', 'blogueira-de-culinaria-em-streaming' — e é a única descrição
+    disponível, já que nenhum modelo de texto enxerga a imagem.
+
+    Devolve string vazia quando o nome não diz nada ('library-849797_1280',
+    '1234-2'): melhor sem alt do que com um alt inventado.
+    """
+    base = re.sub(r"\.(jpe?g|png|webp|gif)$", "", nome, flags=re.I)
+    base = re.sub(r"-scaled$", "", base, flags=re.I)
+    base = re.sub(r"-\d+x\d+$", "", base)
+
+    # Bancos de imagem assinam o arquivo com o próprio nome. Sem tirar isso,
+    # 'robert-stump-bwpgwJesFhw-unsplash' vira um alt com o nome do fotógrafo.
+    base = re.sub(r"[-_](unsplash|pexels|pixabay|freepik|istock|getty).*$", "",
+                  base, flags=re.I)
+    base = re.sub(r"[-_]+", " ", base)
+
+    def aproveitavel(palavra):
+        if len(palavra) <= 2 or any(c.isdigit() for c in palavra):
+            return False
+        # Sequência longa com maiúscula no meio é identificador, não palavra:
+        # é o formato de hash que o Unsplash usa ('bwpgwJesFhw').
+        return not (len(palavra) >= 8 and re.search(r"[a-z][A-Z]", palavra))
+
+    palavras = [p for p in base.split() if aproveitavel(p)]
+    return " ".join(palavras) if len(palavras) >= 3 else ""

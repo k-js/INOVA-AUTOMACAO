@@ -304,3 +304,29 @@ def listar_modelos(chave, requests_=None):
     if resposta.status_code != 200:
         raise RuntimeError(f"HTTP {resposta.status_code}: {resposta.text[:200]}")
     return sorted(m["id"] for m in resposta.json().get("data", []))
+
+
+def alt_do_nome_do_arquivo(palavras, aba, chave, modelo=None, requests_=None):
+    """
+    Texto alternativo a partir das palavras do nome do arquivo.
+
+    Usado nas capas antigas, que estão com alt vazio e das quais não temos
+    legenda. O modelo apenas reescreve o que o nome já diz — ele não vê a
+    imagem, e a instrução deixa isso explícito para não acrescentar detalhe
+    que ninguém verificou.
+    """
+    if not palavras:
+        return ""
+    mensagens = [
+        {"role": "system", "content":
+            "Você transforma o nome de arquivo de uma imagem em texto "
+            "alternativo (alt), em português do Brasil. Uma frase curta, até "
+            "120 caracteres. Use SOMENTE o que o nome já diz — não acrescente "
+            "detalhes, cores, quantidades ou lugares que não estejam ali. Não "
+            "comece com 'imagem de' ou 'foto de'. Responda só com a frase."},
+        {"role": "user", "content":
+            f"Nome do arquivo: {palavras}\n"
+            f"A imagem ilustra a página do setor {aba}.\n\nTexto alternativo:"},
+    ]
+    return _completar(mensagens, chave, modelo, max_tokens=80,
+                      requests_=requests_).strip()[:140]

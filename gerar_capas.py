@@ -25,6 +25,7 @@ requirements-visao.txt.
     python gerar_capas.py --analisar --abas GAMETECHS,TRAVELTECHS
 """
 
+import io
 import os
 import sys
 import json
@@ -354,11 +355,147 @@ def aplicar(args):
         print(f"💾 Backups em backups/capa-{carimbo}/")
 
 
+def repadronizar(args):
+    """
+    Recorta as capas que já existem para o padrão 3:1, até 2400x800.
+
+    As 33 capas do site vão de 1.5 a 3.49 de proporção, e a da FINTECHS tem
+    293px de altura — abaixo dos 300px do bloco, e por isso é esticada. A
+    proporção é o que padroniza; a resolução é um teto, e NADA é ampliado.
+
+    A foto é a mesma: só o enquadramento muda. A mídia antiga fica intacta na
+    biblioteca, e o bloco passa a apontar para a nova — desfazer é reapontar.
+    """
+    chave_groq = os.getenv("GROQ_API_KEY")
+    carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
+    pasta_backup = os.path.join(RAIZ, "backups", f"repadronizar-{carimbo}")
+
+    filtro = {a.strip().upper() for a in args.abas.split(",")} if args.abas else None
+    feitas = pequenas = ja_ok = 0
+
+    print("🔍 Percorrendo as capas existentes...\n")
+    for aba, url in sorted(config.ABAS_LINKS.items()):
+        if aba in ABAS_FORA or (filtro and aba not in filtro):
+            continue
+        slug = url.rstrip("/").rsplit("/", 1)[-1]
+
+        pagina = obter_pagina(slug)
+        if not pagina:
+            continue
+        conteudo = pagina.get("content", {}).get("raw", "")
+        partes = P.partir_conteudo(conteudo)
+        if not partes:
+            continue
+        pre, tabela, sufixo = partes
+
+        bloco_atual = capa_wp.extrair_bloco_modelo(pre)
+        if not bloco_atual:
+            continue
+        media_id = capa_wp.media_id_do_bloco(bloco_atual)
+        if not media_id:
+            print(f"   ⚠️  {aba}: bloco sem referência de mídia")
+            continue
+
+        resposta = rede.com_retentativa(
+            lambda: requests.get(f"{API}/media/{media_id}", auth=_auth(),
+                                 headers=CABECALHOS, timeout=30),
+            descricao=f"ler mídia {media_id}",
+        )
+        if resposta.status_code != 200:
+            print(f"   ⚠️  {aba}: mídia {media_id} não encontrada")
+            continue
+        midia = resposta.json()
+        url_arquivo = midia.get("source_url", "")
+        nome_atual = url_arquivo.rsplit("/", 1)[-1]
+
+        if nome_atual == img.nome_do_arquivo(slug):
+            ja_ok += 1
+            continue
+
+        dados = banco.baixar({"url_arquivo": url_arquivo})
+        from PIL import Image
+        largura, altura = Image.open(io.BytesIO(dados)).size
+        final_l, final_a, aviso = img.avaliar(largura, altura)
+
+        if aviso and aviso.startswith("pequena demais"):
+            print(f"   ⚠️  {aba}: {largura}x{altura} — {aviso}")
+            print("        precisa de imagem nova; não vou piorar ampliando\n")
+            pequenas += 1
+            continue
+
+        print(f"   {aba}")
+        print(f"      {largura}x{altura} -> {final_l}x{final_a}"
+              f"{'  (máximo sem ampliar)' if aviso else ''}")
+
+        # O alt existente prevalece. Só quando está vazio — o caso das 33 —
+        # é que se tenta escrever um, a partir do nome do arquivo.
+        alt = capa_wp.extrair_alt(bloco_atual)
+        if not alt and chave_groq:
+            palavras = capa_wp.palavras_do_arquivo(nome_atual)
+            if palavras:
+                alt = descricao.alt_do_nome_do_arquivo(palavras, aba, chave_groq,
+                                                       args.modelo)
+        print(f"      alt: {alt or '(sem base no nome do arquivo — fica vazio)'}")
+
+        if args.dry_run:
+            print()
+            feitas += 1
+            continue
+
+        recorte, larg, alt_px = img.padronizar(dados)
+        novo_id, nova_url = capa_wp.enviar_para_biblioteca(
+            API, recorte, img.nome_do_arquivo(slug), alt, f"Capa {aba}", _auth())
+
+        novo_bloco, problemas = capa_wp.montar_bloco(bloco_atual, nova_url,
+                                                     novo_id, alt)
+        novo_pre = pre.replace(bloco_atual, novo_bloco) if novo_bloco else None
+        if novo_pre:
+            if not P.tem_preambulo(novo_pre):
+                problemas.append("o CSS ou o campo de busca não sobreviveram")
+            if len(P.conteudo_do_preambulo(novo_pre)[0]) != 1:
+                problemas.append("a página ficou com número inesperado de imagens")
+            if P.texto_editorial(pre) != P.texto_editorial(novo_pre):
+                problemas.append("a descrição da página mudou")
+        if problemas:
+            print(f"      ✗ não gravei: {'; '.join(problemas)}\n")
+            continue
+
+        os.makedirs(pasta_backup, exist_ok=True)
+        with open(os.path.join(pasta_backup, f"{slug}.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump({"slug": slug, "pagina_id": pagina["id"],
+                       "midia_anterior": media_id,
+                       "salvo_em": datetime.now().isoformat(timespec="seconds"),
+                       "conteudo": conteudo}, f, ensure_ascii=False, indent=1)
+
+        gravou = rede.com_retentativa(
+            lambda: requests.post(
+                f"{API}/pages/{pagina['id']}", auth=_auth(), headers=CABECALHOS,
+                json={"content": novo_pre + tabela + sufixo}, timeout=60),
+            descricao=f"gravar capa padronizada em /{slug}/",
+        )
+        if gravou.status_code == 200:
+            print(f"      ✓ mídia {novo_id}, {len(recorte)//1024} KB\n")
+            feitas += 1
+        else:
+            print(f"      ✗ falha (HTTP {gravou.status_code})\n")
+
+    print("=" * 64)
+    print(f"{feitas} padronizada(s) | {ja_ok} já no padrão | "
+          f"{pequenas} pequena(s) demais")
+    if args.dry_run:
+        print("(--dry-run: nada foi alterado)")
+    elif feitas:
+        print(f"💾 Backups em backups/repadronizar-{carimbo}/")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--analisar", action="store_true",
                         help="busca, analisa e recorta — sem tocar no site")
+    parser.add_argument("--repadronizar", action="store_true",
+                        help="recorta as capas JÁ EXISTENTES para o padrão 3:1")
     parser.add_argument("--aplicar", action="store_true",
                         help="grava no site as capas escolhidas em capas.json")
     parser.add_argument("--dry-run", action="store_true",
@@ -378,6 +515,8 @@ def main():
         analisar(args)
     elif args.aplicar:
         aplicar(args)
+    elif args.repadronizar:
+        repadronizar(args)
     else:
         parser.print_help()
 
