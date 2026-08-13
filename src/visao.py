@@ -9,9 +9,11 @@ fornece, isto olha a foto.
 
 São três verificações, com papéis diferentes:
 
-    CLIP        mede o quanto a imagem corresponde ao termo buscado, e o
-                quanto ela parece marca d'água / colagem / captura de tela.
-                É o que ordena as candidatas.
+    relevância  portão: a imagem é uma foto do assunto, e não marca d'água,
+                colagem ou captura de tela? Reprova; não ordena.
+
+    similaridade  o quanto a imagem se parece com o termo. É o que ORDENA —
+                não satura, ao contrário do portão.
 
     pessoas     estima se há gente em destaque. Não reprova sozinho, mas
                 desempata a favor de quem não tem: a licença do Pexels
@@ -40,8 +42,8 @@ LIMITE_NSFW = 0.30
 # Acima disto consideramos que há gente em destaque na foto.
 LIMITE_PESSOAS = 0.5
 
-# Abaixo disto a imagem não tem relação suficiente com o termo buscado.
-# Pontuação do CLIP é relativa: serve para ordenar, e como piso grosseiro.
+# Abaixo disto o PORTÃO reprova: a imagem parece mais ruído que assunto.
+# Quem ordena é a similaridade, não isto.
 RELEVANCIA_MINIMA = 0.15
 
 # Termos negativos: o que atrapalha uma capa mesmo sendo "relevante".
@@ -122,12 +124,37 @@ def pontuar_nsfw(dados):
 
 def pontuar_relevancia(dados, consulta):
     """
-    O quanto a imagem corresponde à consulta, descontando ruído visual.
+    PORTÃO: a imagem é uma foto do assunto, e não marca d'água ou captura?
 
-    A consulta disputa com os termos de RUIDOS no mesmo softmax: uma captura
-    de tela com marca d'água perde para si mesma, ainda que o assunto bata.
+    A consulta disputa com os termos de RUIDOS no mesmo softmax. Serve para
+    reprovar, não para ordenar: contra distratores fracos, qualquer foto normal
+    ganha de lavada e a nota satura em 1,00 — na primeira execução sete de oito
+    candidatas empataram assim, e a escolha acabou caindo na ordem em que o
+    Pexels devolveu.
     """
     return float(_comparar(dados, [f"a photo of {consulta}"] + RUIDOS)[0])
+
+
+def pontuar_similaridade(dados, consulta):
+    """
+    ORDENAÇÃO: o quanto a imagem se parece com a consulta, sem disputa.
+
+    É o cosseno entre a imagem e o texto, do próprio CLIP. Diferente do portão
+    acima, não satura: fica tipicamente entre 0,15 e 0,35, e distingue uma foto
+    que é exatamente o assunto de outra que só passa perto.
+    """
+    import torch
+
+    modelos = _carregar()
+    entradas = modelos["clip_proc"](
+        text=[f"a photo of {consulta}"], images=_imagem(dados),
+        return_tensors="pt", padding=True, truncation=True,
+    )
+    with torch.no_grad():
+        saida = modelos["clip"](**entradas)
+        imagem = saida.image_embeds / saida.image_embeds.norm(dim=-1, keepdim=True)
+        texto = saida.text_embeds / saida.text_embeds.norm(dim=-1, keepdim=True)
+    return float((imagem @ texto.T)[0, 0])
 
 
 def analisar(dados, consulta):
@@ -137,7 +164,8 @@ def analisar(dados, consulta):
     'reprovada' traz o motivo quando a imagem não pode ser usada; vem None
     quando ela está liberada.
     """
-    resultado = {"pessoas": 0.0, "nsfw": 0.0, "relevancia": 0.0, "reprovada": None}
+    resultado = {"pessoas": 0.0, "nsfw": 0.0, "relevancia": 0.0,
+                 "similaridade": 0.0, "reprovada": None}
 
     resultado["nsfw"] = pontuar_nsfw(dados)
     if resultado["nsfw"] > LIMITE_NSFW:
@@ -151,13 +179,17 @@ def analisar(dados, consulta):
         )
         return resultado
 
+    resultado["similaridade"] = pontuar_similaridade(dados, consulta)
     resultado["pessoas"] = pontuar_pessoas(dados)
     return resultado
 
 
 def ordenar(analisadas):
     """
-    Ordena as aprovadas: sem pessoas primeiro, depois por relevância.
+    Ordena as aprovadas: sem pessoas primeiro, depois por similaridade.
+
+    Por SIMILARIDADE, e não pela relevância: aquela é o portão e satura em
+    1,00, deixando o desempate cair na ordem do Pexels.
 
     Preferir foto sem pessoa em destaque é a regra de menor risco numa
     escolha que ninguém vai revisar — e conversa com a restrição da própria
@@ -166,5 +198,5 @@ def ordenar(analisadas):
     return sorted(
         analisadas,
         key=lambda item: (item["analise"]["pessoas"] > LIMITE_PESSOAS,
-                          -item["analise"]["relevancia"]),
+                          -item["analise"]["similaridade"]),
     )

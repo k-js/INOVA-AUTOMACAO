@@ -220,7 +220,11 @@ def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
     de relevância. Se fossem termos diferentes, o CLIP estaria pontuando
     contra algo que não foi o que se pediu ao banco de imagens.
     """
-    lista = ", ".join(nome for nome, _ in categorias.most_common(6))
+    # As contagens vão junto: sem elas o modelo trata todas as categorias como
+    # se pesassem igual. Foi assim que INSURTECHS -- liderada por Tecnologia
+    # Corporativa (4) -- virou 'rural farm insurance claims', pescando
+    # Agricultura (2) e Seguros (1).
+    lista = ", ".join(f"{nome} ({n})" for nome, n in categorias.most_common(6))
 
     # O pedido vai em inglês porque a resposta precisa vir em inglês, e o
     # modelo tende a responder no idioma em que foi perguntado.
@@ -236,7 +240,9 @@ def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
             "  Sector: GREENTECHS | Categories: Energia, Sustentabilidade"
             " -> solar panels green energy"},
         {"role": "user", "content":
-            f"Sector: {aba} | Categories: {lista}\nEnglish search term:"},
+            f"Sector: {aba} | Categories (with how many organizations each): "
+            f"{lista}\nWeight the categories by their counts: the term must "
+            f"reflect the largest ones, not a minor one.\nEnglish search term:"},
     ]
 
     for _ in (1, 2):

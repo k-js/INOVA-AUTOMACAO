@@ -11,11 +11,11 @@ O caminho:
     categorias da página  ->  termo de busca em inglês (modelo de texto)
             ->  Pexels devolve candidatas em paisagem
             ->  descarta as pequenas demais para o recorte 3:1
-            ->  visão: NSFW, relevância e presença de pessoas (CLIP)
-            ->  ordena: sem pessoas primeiro, depois por relevância
+            ->  visão: NSFW, portão de relevância, similaridade e pessoas
+            ->  ordena: sem pessoas primeiro, depois por similaridade
             ->  recorta 3:1 até 2400x800, sem ampliar
 
-O mesmo termo alimenta a busca e a medição de relevância, para o CLIP estar
+O mesmo termo alimenta a busca e a medição do CLIP, para ele estar
 pontuando exatamente contra o que foi pedido ao banco de imagens.
 
 Precisa de PEXELS_API_KEY e GROQ_API_KEY. As dependências de visão estão em
@@ -170,8 +170,9 @@ def analisar(args):
 
             resultado = visao.analisar(dados, termo)
             marca = "✗" if resultado["reprovada"] else "•"
-            print(f"   {i:>2}. {marca} rel {resultado['relevancia']:.2f}  "
-                  f"nsfw {resultado['nsfw']:.2f}  pessoas {resultado['pessoas']:.2f}  "
+            print(f"   {i:>2}. {marca} sim {resultado['similaridade']:.3f}  "
+                  f"rel {resultado['relevancia']:.2f}  nsfw {resultado['nsfw']:.2f}  "
+                  f"pessoas {resultado['pessoas']:.2f}  "
                   f"{cand['largura']}x{cand['altura']}  {cand['legenda'][:44]}")
             if resultado["reprovada"]:
                 print(f"        reprovada: {resultado['reprovada']}")
@@ -196,7 +197,7 @@ def analisar(args):
         alt = descricao.texto_alternativo(cand["legenda"], aba, chave_groq, args.modelo)
 
         print(f"\n   ✅ escolhida: {cand['url_pagina']}")
-        print(f"      relevância {res['relevancia']:.2f} | pessoas {res['pessoas']:.2f} | "
+        print(f"      similaridade {res['similaridade']:.3f} | pessoas {res['pessoas']:.2f} | "
               f"autor {cand['autor']}")
         print(f"      recorte {largura}x{altura}, {len(recorte)//1024} KB "
               f"-> capas/{img.nome_do_arquivo(slug)}")
@@ -212,6 +213,7 @@ def analisar(args):
                 "url_pagina": cand["url_pagina"], "autor": cand["autor"],
                 "original": f"{cand['largura']}x{cand['altura']}",
                 "legenda": cand["legenda"],
+                "similaridade": round(res["similaridade"], 3),
                 "relevancia": round(res["relevancia"], 3),
                 "pessoas": round(res["pessoas"], 3), "nsfw": round(res["nsfw"], 3),
             },
