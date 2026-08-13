@@ -33,6 +33,10 @@ on:
         description: 'Repadronizar as capas JÁ EXISTENTES para 3:1 (usa "dry_run" também)'
         type: boolean
         default: false
+      legendar:
+        description: 'Escrever o alt olhando a imagem (vazio em "abas" = só as que estão sem alt)'
+        type: boolean
+        default: false
       refazer_alt:
         description: 'Reescrever só o texto alternativo (exige "abas")'
         type: boolean
@@ -171,6 +175,24 @@ jobs:
           ARGS="--refazer-alt --abas ${{ inputs.abas }}"
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
+          fi
+          python gerar_capas.py $ARGS
+
+      # Le a imagem publicada com um modelo de visao e escreve o alt. O log
+      # traz a URL de cada imagem, para a conferencia ser um clique.
+      - name: Legendar capas com visão computacional
+        if: ${{ inputs.legendar == true }}
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS="--legendar"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "${{ inputs.abas }}" ]; then
+            ARGS="$ARGS --abas ${{ inputs.abas }}"
           fi
           python gerar_capas.py $ARGS
 

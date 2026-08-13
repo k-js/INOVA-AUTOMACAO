@@ -221,3 +221,48 @@ def ordenar(analisadas):
         key=lambda item: (item["analise"]["pessoas"] > LIMITE_PESSOAS,
                           -item["analise"]["similaridade"]),
     )
+
+
+# Modelo de LEGENDAGEM — gera uma descrição da imagem, ao contrário do CLIP,
+# que só compara imagem com textos que você fornece. É o que permite escrever
+# alt para uma foto de que não se sabe nada.
+MODELO_LEGENDA = "Salesforce/blip-image-captioning-base"
+
+_legendador = {}
+
+
+def _carregar_legendador():
+    """
+    Carrega o BLIP sob demanda.
+
+    Separado de _carregar(): são ~450 MB que a análise de candidatas não usa,
+    e não faz sentido baixá-los numa execução que só escolhe capa.
+    """
+    if _legendador:
+        return _legendador
+    from transformers import BlipForConditionalGeneration, BlipProcessor
+    _legendador["proc"] = BlipProcessor.from_pretrained(MODELO_LEGENDA)
+    _legendador["modelo"] = BlipForConditionalGeneration.from_pretrained(MODELO_LEGENDA)
+    return _legendador
+
+
+def legendar(dados, max_tokens=40):
+    """
+    Descreve a imagem em inglês, olhando os pixels.
+
+    Legenda a imagem que for passada — e o uso pretendido é passar a versão JÁ
+    RECORTADA, publicada no site. Assim o texto alternativo descreve o que o
+    visitante vê, e não a foto original: o recorte 3:1 descarta mais da metade
+    da altura, e o assunto citado pode ter ficado fora.
+
+    As legendas são genéricas ('a group of people sitting around a table'), o
+    que serve para alt, e ocasionalmente erradas — o modelo confunde objetos
+    parecidos.
+    """
+    import torch
+
+    peca = _carregar_legendador()
+    entradas = peca["proc"](_imagem(dados), return_tensors="pt")
+    with torch.no_grad():
+        saida = peca["modelo"].generate(**entradas, max_new_tokens=max_tokens)
+    return peca["proc"].decode(saida[0], skip_special_tokens=True).strip()

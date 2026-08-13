@@ -502,6 +502,92 @@ def repadronizar(args):
         print(f"💾 Backups em backups/repadronizar-{carimbo}/")
 
 
+def legendar(args):
+    """
+    Escreve o alt olhando a imagem, com um modelo de visão.
+
+    Onze capas estão sem alt porque o nome do arquivo não diz nada
+    ('library-849797_1280'). E das que têm, dezoito descrevem a foto ORIGINAL,
+    não o recorte 3:1 publicado — o corte descarta mais da metade da altura, e
+    o assunto citado pode ter ficado fora.
+
+    Aqui a legenda sai da imagem que está no ar. Por padrão só mexe nas que
+    estão sem alt; --abas força as indicadas, tenham alt ou não.
+    """
+    if not visao.disponivel():
+        print("❌ Dependências de visão ausentes.")
+        sys.exit(1)
+    chave_groq = os.getenv("GROQ_API_KEY")
+    if not chave_groq:
+        print("❌ GROQ_API_KEY não definida.")
+        sys.exit(1)
+
+    filtro = {a.strip().upper() for a in args.abas.split(",")} if args.abas else None
+    print("🔍 " + ("Legendando as abas indicadas..." if filtro
+                   else "Procurando capas sem texto alternativo...") + "\n")
+
+    feitas = 0
+    for aba, url in sorted(config.ABAS_LINKS.items()):
+        if filtro and aba not in filtro:
+            continue
+
+        slug = url.rstrip("/").rsplit("/", 1)[-1]
+        pagina = obter_pagina(slug)
+        partes = P.partir_conteudo(pagina.get("content", {}).get("raw", "")) if pagina else None
+        if not partes:
+            continue
+        bloco = capa_wp.extrair_bloco_modelo(partes[0])
+        media_id = capa_wp.media_id_do_bloco(bloco) if bloco else None
+        if not media_id:
+            continue
+
+        alt_atual = capa_wp.extrair_alt(bloco)
+        if alt_atual and not filtro:
+            continue
+
+        resposta = rede.com_retentativa(
+            lambda: requests.get(f"{API}/media/{media_id}", auth=_auth(),
+                                 headers=CABECALHOS, timeout=30),
+            descricao=f"ler mídia {media_id}",
+        )
+        if resposta.status_code != 200:
+            print(f"   ✗ {aba}: mídia {media_id} não encontrada")
+            continue
+        url_imagem = resposta.json().get("source_url", "")
+
+        dados = banco.baixar({"url_arquivo": url_imagem})
+        legenda = visao.legendar(dados)
+        novo = descricao.alt_da_legenda(legenda, aba, chave_groq, args.modelo)
+
+        # A URL vai no log para a conferência ser um clique: abrir a imagem e
+        # ler o alt proposto ao lado.
+        print(f"   {aba}")
+        print(f"      imagem   : {url_imagem}")
+        print(f"      alt atual: {alt_atual or '(vazio)'}")
+        print(f"      visão viu: {legenda}")
+        print(f"      proposto : {novo}")
+
+        if args.dry_run or not novo:
+            print()
+            continue
+
+        gravou = rede.com_retentativa(
+            lambda: requests.post(f"{API}/media/{media_id}", auth=_auth(),
+                                  headers=CABECALHOS, json={"alt_text": novo},
+                                  timeout=30),
+            descricao=f"gravar alt da mídia {media_id}",
+        )
+        if gravou.status_code == 200:
+            print("      ✓ gravado\n")
+            feitas += 1
+        else:
+            print(f"      ✗ falha (HTTP {gravou.status_code})\n")
+
+    print("=" * 64)
+    print(f"{feitas} alt(s) gravado(s)" if not args.dry_run
+          else "(--dry-run: nada foi alterado)")
+
+
 def refazer_alt(args):
     """
     Reescreve o texto alternativo das capas, sem tocar na imagem.
@@ -575,6 +661,9 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--analisar", action="store_true",
                         help="busca, analisa e recorta — sem tocar no site")
+    parser.add_argument("--legendar", action="store_true",
+                        help="escreve o alt olhando a imagem publicada "
+                             "(padrão: só as que estão sem alt)")
     parser.add_argument("--refazer-alt", action="store_true",
                         help="reescreve o alt das abas dadas em --abas")
     parser.add_argument("--origem", default="",
@@ -607,6 +696,8 @@ def main():
         repadronizar(args)
     elif args.refazer_alt:
         refazer_alt(args)
+    elif args.legendar:
+        legendar(args)
     else:
         parser.print_help()
 

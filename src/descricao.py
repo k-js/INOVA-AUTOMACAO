@@ -264,6 +264,50 @@ def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
     return ""
 
 
+# Regras do texto alternativo, compartilhadas por quem escreve alt aqui.
+#
+# A restrição sobre pessoas não é preciosismo: a repadronização gerou "Homem
+# caucasiano com fone de ouvido em realidade virtual quebrando código" a partir
+# do nome de um arquivo de banco de imagens. Descrever etnia não ajuda quem usa
+# leitor de tela, e é inadequado num site de universidade federal.
+REGRAS_ALT = (
+    "Uma frase curta, até 120 caracteres, em português do Brasil. Não comece "
+    "com 'imagem de' ou 'foto de'.\n"
+    "Descreva pessoas apenas pelo que fazem. NÃO mencione etnia, cor da pele, "
+    "nacionalidade, idade nem gênero: 'Homem caucasiano programando' deve "
+    "virar 'Pessoa programando'.\n"
+    "Responda só com a frase."
+)
+
+
+def alt_da_legenda(legenda, aba, chave, modelo=None, requests_=None):
+    """
+    Texto alternativo a partir da legenda gerada por um modelo de visão.
+
+    Diferente de texto_alternativo(), que parte da legenda do banco de imagens,
+    e de alt_do_nome_do_arquivo(), que parte do nome do arquivo: aqui a origem
+    é uma descrição da imagem REAL, feita por um modelo que a viu — e da versão
+    recortada, que é a publicada.
+
+    O modelo de texto só traduz e enxuga. Ele não viu a imagem, e a instrução
+    diz isso para que não acrescente detalhe nenhum.
+    """
+    if not legenda:
+        return ""
+    mensagens = [
+        {"role": "system", "content":
+            "Você converte em texto alternativo (alt) a legenda que um modelo "
+            "de visão gerou para uma imagem.\n" + REGRAS_ALT + "\n"
+            "Traduza e enxugue a legenda. Não acrescente nada que não esteja "
+            "nela: você não viu a imagem."},
+        {"role": "user", "content":
+            f"Legenda gerada (em inglês): {legenda}\n"
+            f"A imagem é a capa da página do setor {aba}.\n\nTexto alternativo:"},
+    ]
+    return _completar(mensagens, chave, modelo, max_tokens=80,
+                      requests_=requests_).strip()[:140]
+
+
 def texto_alternativo(legenda, aba, chave, modelo=None, requests_=None):
     """
     Texto alternativo em português, a partir da legenda da própria foto.
