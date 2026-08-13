@@ -21,6 +21,9 @@ import requests
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv
 
+import config
+import preambulo
+
 RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAMINHO_ENV = os.path.join(RAIZ_PROJETO, "credenciais", ".env")
 
@@ -32,18 +35,18 @@ CABECALHOS = {
     "Content-Type": "application/json",
 }
 
-# Conteúdo inicial da página.
+# Conteúdo inicial da página — usado apenas como RESERVA.
 #
-# O marcador é obrigatório: atualizador_WP.py substitui tudo entre ele e o
-# </table> seguinte. Sem o marcador, a publicação falha.
+# O preâmbulo (tudo antes do marcador) normalmente é lido da página modelo no
+# site, por conteudo_de_pagina_nova(). Esta cópia só entra em cena se essa
+# leitura falhar, e por isso ela envelhece: já esteve sem o <style> que
+# centraliza as colunas, sem o campo de busca e sem o botão VOLTAR.
 #
-# O que vem ANTES do marcador também importa, e não é gerado pela publicação:
-# o <style> que centraliza as colunas e o campo de busca. As primeiras páginas
-# criadas por este script nasceram sem eles, e ficaram com as colunas alinhadas
-# à esquerda e sem o campo "Busque por uma organização".
+# Quando ela for usada, o log avisa — e corrigir_preambulo.py conserta a
+# página depois.
 #
-# Se este preâmbulo divergir do das páginas antigas, use corrigir_preambulo.py
-# para copiar o de uma página modelo.
+# O marcador é obrigatório em qualquer caso: atualizador_WP.py substitui tudo
+# entre ele e o </table> seguinte. Sem o marcador, a publicação falha.
 CONTEUDO_INICIAL = """<head>
 <style>
 /* Estilização da tooltip */
@@ -169,6 +172,75 @@ def gerar_titulo(nome_aba):
     return " ".join(saida)
 
 
+def _preambulo_do_modelo():
+    """
+    Lê no site o preâmbulo da página modelo, já sem a capa dela.
+
+    Ler em vez de guardar uma cópia no código evita que a cópia envelheça: se
+    alguém ajustar o CSS, o botão VOLTAR ou o campo de busca no WordPress, a
+    próxima página criada já nasce com o ajuste.
+
+    Retorna None se qualquer coisa não bater — o chamador cai na reserva.
+    """
+    url = config.ABAS_LINKS.get(preambulo.ABA_MODELO)
+    if not url:
+        print(f"   ⚠️  aba modelo '{preambulo.ABA_MODELO}' não está em ABAS_LINKS")
+        return None
+    slug = url.rstrip("/").rsplit("/", 1)[-1]
+
+    try:
+        resposta = rede.com_retentativa(
+            lambda: requests.get(
+                f"{API}/pages",
+                params={"slug": slug, "context": "edit"},
+                auth=_credenciais(),
+                headers=CABECALHOS,
+                timeout=30,
+            ),
+            descricao=f"ler preâmbulo do modelo '{slug}'",
+        )
+    except Exception as erro:
+        print(f"   ⚠️  não consegui ler a página modelo: {erro}")
+        return None
+
+    if resposta.status_code != 200 or not resposta.json():
+        print(f"   ⚠️  página modelo '{slug}' não encontrada "
+              f"(HTTP {resposta.status_code})")
+        return None
+
+    partes = preambulo.partir_conteudo(
+        resposta.json()[0].get("content", {}).get("raw", "")
+    )
+    if not partes:
+        print(f"   ⚠️  a página modelo '{slug}' não tem o marcador")
+        return None
+
+    limpo = preambulo.preambulo_estrutural(partes[0])
+
+    # Mesma conferência do corrigir_preambulo.py: melhor nascer com a reserva
+    # do que nascer com a capa do modelo ou sem o CSS da tabela.
+    problemas = preambulo.conferir_preambulo(limpo)
+    if problemas:
+        print(f"   ⚠️  preâmbulo do modelo reprovado: {'; '.join(problemas)}")
+        return None
+
+    return limpo
+
+
+def conteudo_de_pagina_nova():
+    """Conteúdo com que a página nasce: preâmbulo do site + tabela vazia."""
+    partes = preambulo.partir_conteudo(CONTEUDO_INICIAL)
+    do_modelo = _preambulo_do_modelo()
+
+    if do_modelo and partes:
+        _, bloco, sufixo = partes
+        return do_modelo + bloco + sufixo
+
+    print("   ⚠️  usando o preâmbulo de reserva do código. Rode "
+          "corrigir_preambulo.py depois para padronizar a página.")
+    return CONTEUDO_INICIAL
+
+
 def buscar_pagina_por_slug(slug):
     """Retorna os dados da página com esse slug, ou None."""
     resposta = requests.get(
@@ -210,7 +282,7 @@ def criar_pagina(nome_aba, dry_run=False):
         json={
             "title": titulo,
             "slug": slug,
-            "content": CONTEUDO_INICIAL,
+            "content": conteudo_de_pagina_nova(),
             # Rascunho: só vai ao ar quando alguém publicar manualmente.
             "status": "draft",
             # Página na raiz do site, como todas as demais páginas de techs:

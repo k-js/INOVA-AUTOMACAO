@@ -41,7 +41,7 @@ on:
         type: boolean
         default: false
       corrigir_preambulo:
-        description: 'Padronizar CSS das tabelas e campo de busca nas páginas que estão sem'
+        description: 'Padronizar preâmbulo (CSS das tabelas, campo de busca, botão VOLTAR) e tirar capa herdada do modelo'
         type: boolean
         default: false
 
@@ -78,7 +78,11 @@ jobs:
           GOOGLE_JSON: ${{ secrets.GOOGLE_JSON }}
         run: python sincronizar_config.py --listar-menus
 
+      # Só roda quando ha algo a sincronizar. Sem a guarda, ele rodava sempre
+      # -- e uma falha de rede num passo que voce nem pediu derrubava o job
+      # inteiro, impedindo os passos seguintes de rodar.
       - name: Sincronizar e criar páginas
+        if: ${{ inputs.criar_paginas == true || inputs.commit == true || inputs.menu_id != '' }}
         env:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
