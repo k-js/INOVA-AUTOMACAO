@@ -94,6 +94,24 @@ var STATUS_OPCOES = [
 var COLUNAS_IDENTIFICADOR = ['NOME', 'ORGANIZACAO', 'NOME OU ORGANIZACAO'];
 
 /**
+ * ID da planilha, usado quando o script roda por acionador de tempo.
+ *
+ * SpreadsheetApp.getActiveSpreadsheet() retorna null nesse contexto: não há
+ * planilha "ativa" fora de uma sessão de usuário. As funções agendadas
+ * falhavam em 0 segundos por causa disso.
+ *
+ * Está no arquivo por ser o mesmo ID que já aparece na URL da planilha — não
+ * é segredo. Quem tem acesso ao script já tem acesso à planilha.
+ *
+ * Para descobrir: na URL da planilha, é o trecho entre /d/ e /edit
+ *   docs.google.com/spreadsheets/d/<ID_AQUI>/edit
+ *
+ * @type {string}
+ * @const
+ */
+var ID_PLANILHA = '';  // ← preencher com o ID da planilha
+
+/**
  * Nome do arquivo HTML do diálogo, sem a extensão.
  *
  * ⚠️ Esta é uma referência POR STRING a outro arquivo do projeto Apps Script.
@@ -348,7 +366,7 @@ function colunaParaLetra(numero) {
  * @return {void}
  */
 function checarAbasComStatus() {
-  var planilha = SpreadsheetApp.getActiveSpreadsheet();
+  var planilha = obterPlanilha();
   var abaChecagem = planilha.getSheetByName('CHECAR ABAS');
 
   if (!abaChecagem) {
@@ -421,6 +439,33 @@ function checarAbasComStatus() {
 
 
 /**
+ * Devolve a planilha, funcionando nos dois contextos de execução.
+ *
+ * getActiveSpreadsheet() só funciona quando há sessão de usuário: pelo editor,
+ * pelo menu ou por acionador simples. Em acionador POR TEMPO ele retorna null,
+ * e a função morre na linha seguinte — em 0 segundos, sem mensagem útil.
+ *
+ * Por isso, quando não há planilha ativa, abre pelo ID.
+ *
+ * @return {!Spreadsheet}
+ * @throws {Error} Se não houver planilha ativa nem ID_PLANILHA preenchido.
+ */
+function obterPlanilha() {
+  var planilha = SpreadsheetApp.getActiveSpreadsheet();
+  if (planilha) return planilha;
+
+  if (!ID_PLANILHA) {
+    throw new Error(
+      'Sem planilha ativa (execução por acionador de tempo) e ID_PLANILHA está '
+      + 'vazio. Preencha a constante ID_PLANILHA no início do Codigo.gs com o '
+      + 'ID que aparece na URL da planilha, entre /d/ e /edit.'
+    );
+  }
+
+  return SpreadsheetApp.openById(ID_PLANILHA);
+}
+
+/**
  * Mostra uma mensagem ao usuário, funcionando nos dois contextos de execução.
  *
  * getUi() só existe quando o script é acionado a partir da planilha (menu,
@@ -455,7 +500,7 @@ function relatar(mensagem) {
  * @return {void}
  */
 function padronizarAbas() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obterPlanilha();
 
   // Construir objeto de validação uma vez
   var statusValidation = SpreadsheetApp.newDataValidation()
@@ -587,7 +632,7 @@ function checarLinksErros() {
   var LOTE_TAMANHO = 40;
   var PAUSA_MS = 500;
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obterPlanilha();
   var abaDestino = ss.getSheetByName('CHECAR ABAS');
   if (!abaDestino) {
     relatar('A aba "CHECAR ABAS" não foi encontrada.');
