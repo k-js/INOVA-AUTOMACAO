@@ -32,3 +32,6 @@ Thumbs.db
 
 # backups locais da automacao (o workflow publica como artefato)
 backups/
+
+# Capas propostas pela automacao (artefato de conferencia, nao versionar)
+capas/

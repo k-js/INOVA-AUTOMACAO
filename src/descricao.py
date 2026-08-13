@@ -179,6 +179,76 @@ def gerar(aba, categorias, exemplos, chave, modelo=None, requests_=None):
     return "", ["não passou na conferência em duas tentativas"]
 
 
+def _completar(mensagens, chave, modelo=None, max_tokens=120, requests_=None):
+    """Uma chamada ao modelo, devolvendo só o texto. Levanta em caso de erro."""
+    import requests as _requests
+    requests_ = requests_ or _requests
+
+    resposta = requests_.post(
+        f"{API_GROQ}/chat/completions",
+        headers={"Authorization": f"Bearer {chave}",
+                 "Content-Type": "application/json"},
+        json={"model": modelo or MODELO_PADRAO, "messages": mensagens,
+              "temperature": 0.2, "max_tokens": max_tokens},
+        timeout=60,
+    )
+    if resposta.status_code != 200:
+        raise RuntimeError(f"HTTP {resposta.status_code}: {resposta.text[:160]}")
+    return resposta.json()["choices"][0]["message"]["content"].strip().strip('"')
+
+
+def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
+    """
+    Termo em inglês para procurar a capa, montado a partir das categorias.
+
+    Em inglês de propósito: é o idioma em que tanto o Pexels quanto o CLIP
+    funcionam melhor, e o MESMO termo alimenta os dois — a busca e a medição
+    de relevância. Se fossem termos diferentes, o CLIP estaria pontuando
+    contra algo que não foi o que se pediu ao banco de imagens.
+    """
+    lista = ", ".join(nome for nome, _ in categorias.most_common(6))
+    mensagens = [
+        {"role": "system", "content":
+            "Você devolve termos de busca para bancos de imagem. Responda com "
+            "2 a 5 palavras em INGLÊS, descrevendo uma cena fotografável. "
+            "Nada de nomes de empresa, marca, texto na imagem ou termo "
+            "abstrato. Responda só com o termo."},
+        {"role": "user", "content":
+            f"Setor: {aba}\nCategorias das organizações: {lista}\n\n"
+            f"Termo de busca para a foto de capa dessa página:"},
+    ]
+    termo = _completar(mensagens, chave, modelo, max_tokens=30, requests_=requests_)
+    return re.sub(r"[^A-Za-z0-9 \-]", "", termo).strip().lower()[:60]
+
+
+def texto_alternativo(legenda, aba, chave, modelo=None, requests_=None):
+    """
+    Texto alternativo em português, a partir da legenda da própria foto.
+
+    A base é a legenda que o banco de imagens fornece — uma descrição do que
+    a foto mostra. O modelo traduz e enxuga; não inventa o conteúdo da imagem,
+    que ele não vê.
+
+    Todas as 33 capas do site hoje têm alt vazio. Como a automação já está
+    escrevendo texto, preencher isto sai de graça e melhora a acessibilidade
+    em vez de repetir a lacuna.
+    """
+    if not legenda:
+        return ""
+    mensagens = [
+        {"role": "system", "content":
+            "Você escreve texto alternativo (alt) para imagens, em português "
+            "do Brasil. Uma frase curta, até 120 caracteres, descrevendo o que "
+            "a imagem mostra. Não comece com 'imagem de' ou 'foto de'. "
+            "Responda só com a frase."},
+        {"role": "user", "content":
+            f"Descrição da foto (em inglês): {legenda}\n"
+            f"Ela ilustra a página do setor {aba}.\n\nTexto alternativo:"},
+    ]
+    alt = _completar(mensagens, chave, modelo, max_tokens=80, requests_=requests_)
+    return alt.strip()[:140]
+
+
 def listar_modelos(chave, requests_=None):
     """Modelos que esta chave alcança, do catálogo atual da Groq."""
     import requests as _requests
