@@ -140,10 +140,31 @@ try:
 
     if abas_forcadas:
         print(f"🔁 Abas forçadas por ABAS_FORCADAS: {abas_forcadas}")
-        # Acrescenta sem duplicar as que já vieram de CHECAR ABAS.
-        ja_listadas = {a.upper() for a in abas_selecionadas}
+
+        # A comparação normaliza acento e caixa: 'PERÍODICOS' digitado num
+        # campo de formulário pode vir com acento composto (NFD) enquanto o
+        # config está com acento simples (NFC). São textos diferentes para o
+        # Python, idênticos na tela — e a aba seria silenciosamente ignorada.
+        ja_listadas = {config.normalizar(a) for a in abas_selecionadas}
+
         for aba in abas_forcadas:
-            if aba.upper() not in ja_listadas:
+            if config.normalizar(aba) in ja_listadas:
+                continue
+
+            # Casa o nome digitado com a grafia exata do config, para que a
+            # busca do link (que usa a chave literal) funcione.
+            exata = next(
+                (k for k in config.ABAS_LINKS
+                 if config.normalizar(k) == config.normalizar(aba)),
+                None,
+            )
+            if exata:
+                if exata != aba:
+                    print(f"   '{aba}' → usando a grafia do config: '{exata}'")
+                abas_selecionadas.append(exata)
+            else:
+                print(f"   ⚠️ '{aba}' não está em ABAS_LINKS — vai falhar com "
+                      f"'Link não mapeado'. Confira a grafia.")
                 abas_selecionadas.append(aba)
 
     print(f"✅ Abas que serão atualizadas: {abas_selecionadas}")
