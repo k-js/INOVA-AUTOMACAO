@@ -101,7 +101,29 @@ jobs:
           ABAS_FORCADAS: ${{ inputs.abas_forcadas }}
         run: python main.py
 
-      # 7️⃣ Publicar o backup como artefato, para download
+      # 7️⃣ Descrever as páginas que ainda não têm descrição
+      #
+      # Roda DEPOIS da publicação de propósito: a frase é escrita a partir das
+      # categorias da tabela, e uma página recém-criada só ganha tabela aqui.
+      # Na criação ela está vazia, e não haveria o que descrever.
+      #
+      # No dia a dia não faz nada — todas as páginas já têm descrição, e o
+      # passo só percorre a lista e sai. O modelo só é chamado quando aparece
+      # uma página nova.
+      #
+      # continue-on-error: a descrição é um acréscimo. Se a Groq estiver fora
+      # do ar ou a cota tiver acabado, a publicação do dia não pode ficar
+      # vermelha por causa disso — a página funciona sem a frase, e a próxima
+      # execução tenta de novo.
+      - name: Descrever páginas novas
+        continue-on-error: true
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: python gerar_descricoes.py --auto
+
+      # 8️⃣ Publicar o backup como artefato, para download
       #
       # always(): o backup precisa ficar disponível MESMO se a publicação
       # falhar — é justamente nesse caso que ele serve para reverter.

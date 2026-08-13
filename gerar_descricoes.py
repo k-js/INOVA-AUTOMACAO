@@ -6,23 +6,33 @@ A descrição é a frase embaixo da capa, acima da tabela. Ela é escrita a part
 das categorias que a própria página já lista — não do conhecimento do modelo
 sobre o setor. Veja src/descricao.py.
 
-O trabalho é feito em DUAS etapas, com você no meio:
+Há dois modos de uso.
 
-    1. python gerar_descricoes.py --propor
-       Acha as páginas sem descrição, lê as categorias de cada uma, pede a
-       frase ao modelo e grava tudo em descricoes.json. NÃO toca no site.
+AUTOMÁTICO — é o que roda no dia a dia, no fim do "Atualizar INOVA":
 
-    2. (você lê o descricoes.json e corrige o que quiser)
+    python gerar_descricoes.py --auto
 
-    3. python gerar_descricoes.py --aplicar
-       Grava no site exatamente o que está no arquivo — nada é gerado nesta
-       etapa. O conteúdo anterior vai para backups/ antes de qualquer escrita.
+    Gera e grava na mesma execução. Nenhuma revisão humana. Roda depois da
+    publicação porque as categorias saem da tabela da página, que só existe
+    depois que a publicação a preencheu — na criação a página está vazia.
 
-Essa separação é proposital: o texto vai para um site institucional federal, e
-nenhuma frase deve chegar lá sem alguém ter lido.
+    Sem ninguém lendo antes, o que segura a qualidade é:
+      - a frase só pode usar as categorias daquela página (src/descricao.py)
+      - conferir() recusa frase fora do padrão, e tenta de novo
+      - página que JÁ tem descrição nunca é sobrescrita — inclusive uma
+        corrigida à mão, que portanto prevalece para sempre
+      - backup do conteúdo anterior antes de cada escrita
 
-Precisa de GROQ_API_KEY (Secret na Action, ou credenciais/.env) apenas na
-etapa 1. A etapa 2 não fala com o modelo.
+REVISADO — para rodar em lote ou quando quiser conferir antes:
+
+    1. python gerar_descricoes.py --propor    grava descricoes.json, não
+                                              toca no site
+    2. (você lê o arquivo e corrige o que quiser)
+    3. python gerar_descricoes.py --aplicar   copia o arquivo para o site,
+                                              sem gerar nada
+
+Precisa de GROQ_API_KEY (Secret na Action, ou credenciais/.env) para gerar.
+O --aplicar sozinho não fala com o modelo.
 
     python gerar_descricoes.py --listar-modelos
 """
@@ -157,7 +167,7 @@ def propor(args):
 
     if not sem_descricao:
         print("\n✅ Todas as páginas já têm descrição.")
-        return
+        return {}
 
     print(f"\n🎯 {len(sem_descricao)} página(s) sem descrição")
     print(f"🤖 Modelo: {modelo}\n")
@@ -185,7 +195,11 @@ def propor(args):
 
     if not propostas:
         print("\n❌ Nenhuma proposta aproveitável.")
-        sys.exit(1)
+        # No modo automático isso não pode derrubar a publicação diária: a
+        # descrição é um acréscimo, e a página funciona sem ela.
+        if not args.auto:
+            sys.exit(1)
+        return {}
 
     with open(ARQUIVO, "w", encoding="utf-8") as f:
         json.dump({
@@ -195,9 +209,12 @@ def propor(args):
         }, f, ensure_ascii=False, indent=1)
 
     print(f"💾 {len(propostas)} proposta(s) em descricoes.json")
-    print("\n   LEIA e corrija o arquivo antes de aplicar. Compare cada frase")
-    print("   com as categorias listadas ao lado dela — é para isso que elas")
-    print("   estão no arquivo.")
+    if not args.auto:
+        print("\n   LEIA e corrija o arquivo antes de aplicar. Compare cada frase")
+        print("   com as categorias listadas ao lado dela — é para isso que elas")
+        print("   estão no arquivo.")
+
+    return propostas
 
 
 def inserir(preambulo_texto, frase):
@@ -315,6 +332,9 @@ def main():
                         help="gera as propostas em descricoes.json (não toca no site)")
     parser.add_argument("--aplicar", action="store_true",
                         help="grava no site o que está em descricoes.json")
+    parser.add_argument("--auto", action="store_true",
+                        help="gera E grava na mesma execução, sem revisão "
+                             "humana (usado na publicação diária)")
     parser.add_argument("--dry-run", action="store_true",
                         help="com --aplicar, mostra o que faria sem gravar")
     parser.add_argument("--modelo", default=None,
@@ -332,7 +352,15 @@ def main():
             print(f"   {m}")
         return
 
-    if args.propor:
+    if args.auto:
+        # Página nova só ganha descrição depois que a publicação diária
+        # preencheu a tabela dela: as categorias saem de lá. Por isso este
+        # modo roda no fim do "Atualizar INOVA", e não na criação da página.
+        print("🤖 Modo automático: gera e grava sem revisão.\n")
+        if propor(args):
+            print()
+            aplicar(args)
+    elif args.propor:
         propor(args)
     elif args.aplicar:
         aplicar(args)
