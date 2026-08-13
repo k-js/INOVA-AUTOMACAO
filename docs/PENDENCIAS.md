@@ -103,14 +103,14 @@ ficou para trás. Vale conferir o histórico antes de mexer.
 
 ---
 
-## 5. `AGTECHS` tem botão mas está ignorada
+## 5. `AGTECHS` tem botão mas está ignorada — NÃO É PENDÊNCIA
 
-A aba `AGTECHS` está em `ABAS_IGNORADAS` no `config.py` — ou seja, a automação
-não publica nada nela. Mas existe botão para ela em /startups/, apontando para
-`/home/agtechs/`, e a página `/agtechs/` está no ar.
+Confirmado com a equipe em 13/08/2026: a página `/agtechs/` leva a **outro
+portfólio** e não é alimentada por esta planilha. Está correta como está.
 
-Ou a página é mantida à mão (e a aba deveria continuar ignorada), ou a aba
-deveria voltar a ser publicada. Vale confirmar com quem cuida do conteúdo.
+A aba continua em `ABAS_IGNORADAS` e o botão continua em /startups/ — nenhum
+dos dois é erro. O comentário no `config.py` registra isso, para que uma
+leitura futura não a "conserte" achando que faltava criar a página.
 
 ---
 

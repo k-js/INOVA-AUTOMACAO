@@ -119,8 +119,12 @@ ABAS_IGNORADAS = {
     # ABAS_LINKS por engano, apontando para /teste/, que nunca existiu — cada
     # execução gastava uma tentativa nela e terminava com um aviso.
     "TESTE",
-    # Aguardando criação da página no site
+    # A página /agtechs/ existe no site e tem botão em /startups/, mas leva a
+    # OUTRO portfólio: ela não é alimentada por esta planilha. Está correta
+    # como está — não é caso de publicar, nem de tirar o botão. Confirmado com
+    # a equipe em 13/08/2026.
     "AGTECHS",
+    # Aguardando criação da página no site
     "BEAUTYTECHS",
     "EVENTECHS",
     "PORTAIS DE NOTÍCIAS",
