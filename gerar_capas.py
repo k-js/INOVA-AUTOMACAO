@@ -85,12 +85,15 @@ def obter_pagina(slug):
     return paginas[0] if paginas else None
 
 
-def paginas_sem_capa(filtro=None):
+def paginas_sem_capa(filtro=None, substituir=False):
     """
     Páginas sem imagem de capa, com as categorias de cada uma.
 
     A capa é o bloco wp:cover do preâmbulo. Uma página com <img> ali já tem
-    capa e não entra.
+    capa e não entra — a não ser com substituir=True, para o caso de a capa
+    atual não servir (a da PROPRIEDADE INTELECTUAL tem 640x480 e não sobrevive
+    ao recorte). Trocar a capa de uma página é decisão editorial, então exige
+    nomear a aba: substituir só vale junto de um filtro.
     """
     achadas = []
     for aba, url in sorted(config.ABAS_LINKS.items()):
@@ -110,7 +113,7 @@ def paginas_sem_capa(filtro=None):
             continue
 
         imagens, _ = P.conteudo_do_preambulo(partes[0])
-        if imagens:
+        if imagens and not (substituir and filtro):
             continue  # já tem capa
 
         categorias = descricao.categorias_da_pagina(conteudo)
@@ -136,8 +139,13 @@ def analisar(args):
 
     filtro = {a.strip().upper() for a in args.abas.split(",")} if args.abas else None
 
-    print("🔍 Procurando páginas sem capa...")
-    alvos = paginas_sem_capa(filtro)
+    if args.substituir and not filtro:
+        print("❌ --substituir exige --abas: trocar a capa de uma página é\n"
+              "   decisão editorial, e não pode valer para todas de uma vez.")
+        sys.exit(1)
+    print("🔍 Procurando páginas sem capa..." if not args.substituir
+          else "🔍 Preparando substituição de capa...")
+    alvos = paginas_sem_capa(filtro, args.substituir)
     if not alvos:
         print("\n✅ Todas as páginas já têm capa.")
         return
@@ -295,7 +303,7 @@ def aplicar(args):
 
         # Nunca por cima de uma capa existente: se alguém pôs uma no meio do
         # caminho, é decisão de gente e prevalece.
-        if P.conteudo_do_preambulo(pre)[0]:
+        if P.conteudo_do_preambulo(pre)[0] and not args.substituir:
             print(f"   ⏭️  {aba}: já tem capa, pulando")
             continue
 
@@ -373,9 +381,14 @@ def repadronizar(args):
     filtro = {a.strip().upper() for a in args.abas.split(",")} if args.abas else None
     feitas = pequenas = ja_ok = 0
 
+    # ABAS_FORA não se aplica aqui. Ela existe por causa do layout da TABELA
+    # — PITCHS tem embeds de vídeo, VÍDEOS tem 3 colunas —, e a capa é o mesmo
+    # elemento em todas as páginas. Excluí-las da padronização de capa foi
+    # amplo demais: a de VÍDEOS E PODCASTS tem 4920x3280 e cabe no alvo cheio.
+    # Página sem bloco de capa é pulada logo adiante, de qualquer forma.
     print("🔍 Percorrendo as capas existentes...\n")
     for aba, url in sorted(config.ABAS_LINKS.items()):
-        if aba in ABAS_FORA or (filtro and aba not in filtro):
+        if filtro and aba not in filtro:
             continue
         slug = url.rstrip("/").rsplit("/", 1)[-1]
 
@@ -572,6 +585,9 @@ def main():
                         help="grava no site as capas escolhidas em capas.json")
     parser.add_argument("--dry-run", action="store_true",
                         help="com --aplicar, mostra o que faria sem gravar")
+    parser.add_argument("--substituir", action="store_true",
+                        help="com --analisar, troca a capa de páginas que JÁ têm "
+                             "uma (exige --abas)")
     parser.add_argument("--abas", default="",
                         help="limita a estas abas (separadas por vírgula)")
     parser.add_argument("--limite", type=int, default=8,

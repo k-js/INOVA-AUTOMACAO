@@ -33,6 +33,14 @@ on:
         description: 'Repadronizar as capas JÁ EXISTENTES para 3:1 (usa "dry_run" também)'
         type: boolean
         default: false
+      refazer_alt:
+        description: 'Reescrever só o texto alternativo (exige "abas")'
+        type: boolean
+        default: false
+      substituir:
+        description: 'Com "Etapa 1": trocar a capa de páginas que JÁ têm uma (exige "abas")'
+        type: boolean
+        default: false
       abas:
         description: 'Limitar a estas abas (separadas por vírgula; vazio = todas as sem capa)'
         type: string
@@ -86,6 +94,9 @@ jobs:
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
           ARGS="--analisar --limite ${{ inputs.limite }}"
+          if [ "${{ inputs.substituir }}" = "true" ]; then
+            ARGS="$ARGS --substituir"
+          fi
           if [ -n "${{ inputs.abas }}" ]; then
             ARGS="$ARGS --abas ${{ inputs.abas }}"
           fi
@@ -144,6 +155,22 @@ jobs:
           fi
           if [ -n "${{ inputs.abas }}" ]; then
             ARGS="$ARGS --abas ${{ inputs.abas }}"
+          fi
+          python gerar_capas.py $ARGS
+
+      # Reescreve so o alt. Separado porque a repadronizacao e idempotente
+      # pelo nome do arquivo: pagina ja padronizada e sempre pulada, e um alt
+      # ruim ficaria la para sempre.
+      - name: Reescrever texto alternativo
+        if: ${{ inputs.refazer_alt == true }}
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS="--refazer-alt --abas ${{ inputs.abas }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
           fi
           python gerar_capas.py $ARGS
 
