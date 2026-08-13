@@ -4,10 +4,10 @@
 # instalar. Só o workflow das capas as instala; a publicação diária não carrega
 # esse peso.
 #
-# A versão CPU do torch é a que o runner usa — sem GPU, a GPU seria 700 MB
-# baixados à toa.
---extra-index-url https://download.pytorch.org/whl/cpu
+# --index-url (e nao --extra-index-url): com o extra, o pip ainda podia
+# preferir a versao do PyPI, que vem com CUDA e pesa ~800 MB a mais sem
+# nenhuma utilidade num runner sem GPU.
+--index-url https://download.pytorch.org/whl/cpu
 torch
 transformers
 Pillow
-opencv-python-headless

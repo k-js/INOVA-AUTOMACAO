@@ -11,8 +11,8 @@ O caminho:
     categorias da página  ->  termo de busca em inglês (modelo de texto)
             ->  Pexels devolve candidatas em paisagem
             ->  descarta as pequenas demais para o recorte 3:1
-            ->  visão: NSFW, relevância (CLIP) e rostos
-            ->  ordena: sem rosto primeiro, depois por relevância
+            ->  visão: NSFW, relevância e presença de pessoas (CLIP)
+            ->  ordena: sem pessoas primeiro, depois por relevância
             ->  recorta 3:1 até 2400x800, sem ampliar
 
 O mesmo termo alimenta a busca e a medição de relevância, para o CLIP estar
@@ -149,6 +149,10 @@ def analisar(args):
         print(f"   categorias: {', '.join(f'{k} ({n})' for k, n in categorias.most_common(5))}")
 
         termo = descricao.termo_de_busca(aba, categorias, chave_groq, args.modelo)
+        if not termo:
+            print("   ❌ não consegui um termo em inglês — pulando\n")
+            relatorio[aba] = {"termo": "", "escolhida": None}
+            continue
         print(f"   termo de busca: {termo!r}")
 
         candidatas = banco.buscar(termo, chave_pexels)
@@ -167,7 +171,7 @@ def analisar(args):
             resultado = visao.analisar(dados, termo)
             marca = "✗" if resultado["reprovada"] else "•"
             print(f"   {i:>2}. {marca} rel {resultado['relevancia']:.2f}  "
-                  f"nsfw {resultado['nsfw']:.2f}  rostos {resultado['rostos']}  "
+                  f"nsfw {resultado['nsfw']:.2f}  pessoas {resultado['pessoas']:.2f}  "
                   f"{cand['largura']}x{cand['altura']}  {cand['legenda'][:44]}")
             if resultado["reprovada"]:
                 print(f"        reprovada: {resultado['reprovada']}")
@@ -192,7 +196,7 @@ def analisar(args):
         alt = descricao.texto_alternativo(cand["legenda"], aba, chave_groq, args.modelo)
 
         print(f"\n   ✅ escolhida: {cand['url_pagina']}")
-        print(f"      relevância {res['relevancia']:.2f} | rostos {res['rostos']} | "
+        print(f"      relevância {res['relevancia']:.2f} | pessoas {res['pessoas']:.2f} | "
               f"autor {cand['autor']}")
         print(f"      recorte {largura}x{altura}, {len(recorte)//1024} KB "
               f"-> capas/{img.nome_do_arquivo(slug)}")
@@ -209,7 +213,7 @@ def analisar(args):
                 "original": f"{cand['largura']}x{cand['altura']}",
                 "legenda": cand["legenda"],
                 "relevancia": round(res["relevancia"], 3),
-                "rostos": res["rostos"], "nsfw": round(res["nsfw"], 3),
+                "pessoas": round(res["pessoas"], 3), "nsfw": round(res["nsfw"], 3),
             },
         }
 

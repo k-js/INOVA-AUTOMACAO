@@ -197,6 +197,20 @@ def _completar(mensagens, chave, modelo=None, max_tokens=120, requests_=None):
     return resposta.json()["choices"][0]["message"]["content"].strip().strip('"')
 
 
+# Palavras curtas de português que praticamente não aparecem num termo em
+# inglês. Servem para pegar o caso de o modelo responder no idioma errado —
+# aconteceu na primeira execução, com 'mulher usando smartwatch'.
+_PORTUGUES = {
+    "de", "da", "do", "das", "dos", "com", "sem", "para", "por", "em", "no",
+    "na", "nos", "nas", "um", "uma", "usando", "mulher", "homem", "pessoa",
+    "pessoas", "trabalho", "empresa", "loja", "cidade", "ou", "que",
+}
+
+
+def _parece_portugues(termo):
+    return any(palavra in _PORTUGUES for palavra in termo.split())
+
+
 def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
     """
     Termo em inglês para procurar a capa, montado a partir das categorias.
@@ -207,18 +221,41 @@ def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
     contra algo que não foi o que se pediu ao banco de imagens.
     """
     lista = ", ".join(nome for nome, _ in categorias.most_common(6))
+
+    # O pedido vai em inglês porque a resposta precisa vir em inglês, e o
+    # modelo tende a responder no idioma em que foi perguntado.
     mensagens = [
         {"role": "system", "content":
-            "Você devolve termos de busca para bancos de imagem. Responda com "
-            "2 a 5 palavras em INGLÊS, descrevendo uma cena fotografável. "
-            "Nada de nomes de empresa, marca, texto na imagem ou termo "
-            "abstrato. Responda só com o termo."},
+            "You return English search terms for a stock photo library. "
+            "Answer with 2 to 5 English words describing a photographable "
+            "scene. English only, never Portuguese. No company or brand "
+            "names, no abstract words. Answer with the term and nothing else."
+            "\n\nExamples:\n"
+            "  Sector: LOGTECHS | Categories: Logistica, Transporte"
+            " -> warehouse logistics operation\n"
+            "  Sector: GREENTECHS | Categories: Energia, Sustentabilidade"
+            " -> solar panels green energy"},
         {"role": "user", "content":
-            f"Setor: {aba}\nCategorias das organizações: {lista}\n\n"
-            f"Termo de busca para a foto de capa dessa página:"},
+            f"Sector: {aba} | Categories: {lista}\nEnglish search term:"},
     ]
-    termo = _completar(mensagens, chave, modelo, max_tokens=30, requests_=requests_)
-    return re.sub(r"[^A-Za-z0-9 \-]", "", termo).strip().lower()[:60]
+
+    for _ in (1, 2):
+        termo = _completar(mensagens, chave, modelo, max_tokens=30,
+                           requests_=requests_)
+        termo = re.sub(r"[^A-Za-z0-9 -]", " ", termo)
+        termo = re.sub(r"\s+", " ", termo).strip().lower()[:60]
+
+        if termo and not _parece_portugues(termo):
+            return termo
+
+        mensagens = mensagens + [
+            {"role": "assistant", "content": termo},
+            {"role": "user",
+             "content": "That is Portuguese. Answer again in ENGLISH only."},
+        ]
+
+    # Melhor não ter termo do que buscar (e pontuar) com um ruim.
+    return ""
 
 
 def texto_alternativo(legenda, aba, chave, modelo=None, requests_=None):

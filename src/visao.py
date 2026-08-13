@@ -13,7 +13,7 @@ São três verificações, com papéis diferentes:
                 quanto ela parece marca d'água / colagem / captura de tela.
                 É o que ordena as candidatas.
 
-    rostos      detecta pessoas identificáveis. Não reprova sozinho, mas
+    pessoas     estima se há gente em destaque. Não reprova sozinho, mas
                 desempata a favor de quem não tem: a licença do Pexels
                 restringe o uso de pessoas reconhecíveis, e uma escolha
                 automática erra mais feio quando há gente na foto.
@@ -24,7 +24,7 @@ São três verificações, com papéis diferentes:
 O que isto NÃO faz: julgar bom gosto. CLIP mede semelhança semântica. Uma foto
 datada, clichê ou que destoe das outras 33 capas passa por aqui sem alarme.
 
-As dependências (torch, transformers, opencv) são pesadas e ficam num
+As dependências (torch, transformers) são pesadas e ficam num
 requirements próprio, instalado só no workflow das capas — a publicação diária
 não carrega esse peso.
 """
@@ -36,6 +36,9 @@ MODELO_NSFW = "Falconsai/nsfw_image_detection"
 
 # Acima disto a imagem é reprovada por conteúdo adulto.
 LIMITE_NSFW = 0.30
+
+# Acima disto consideramos que há gente em destaque na foto.
+LIMITE_PESSOAS = 0.5
 
 # Abaixo disto a imagem não tem relação suficiente com o termo buscado.
 # Pontuação do CLIP é relativa: serve para ordenar, e como piso grosseiro.
@@ -57,7 +60,6 @@ def disponivel():
     try:
         import torch  # noqa: F401
         import transformers  # noqa: F401
-        import cv2  # noqa: F401
         return True
     except ImportError:
         return False
@@ -79,20 +81,34 @@ def _imagem(dados):
     return Image.open(io.BytesIO(dados)).convert("RGB")
 
 
-def contar_rostos(dados):
-    """Quantos rostos frontais a imagem tem. Aproximado, mas barato."""
-    import cv2
-    import numpy as np
+def _comparar(dados, textos):
+    """Distribui a imagem entre os textos dados. Devolve a lista de probabilidades."""
+    import torch
 
-    matriz = cv2.imdecode(np.frombuffer(dados, np.uint8), cv2.IMREAD_COLOR)
-    if matriz is None:
-        return 0
-    cinza = cv2.cvtColor(matriz, cv2.COLOR_BGR2GRAY)
-    detector = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    modelos = _carregar()
+    entradas = modelos["clip_proc"](
+        text=textos, images=_imagem(dados), return_tensors="pt",
+        padding=True, truncation=True,
     )
-    return len(detector.detectMultiScale(cinza, scaleFactor=1.1, minNeighbors=6,
-                                         minSize=(60, 60)))
+    with torch.no_grad():
+        saida = modelos["clip"](**entradas)
+    return saida.logits_per_image.softmax(dim=1)[0].tolist()
+
+
+def pontuar_pessoas(dados):
+    """
+    O quanto a imagem mostra pessoas identificáveis, de 0 a 1.
+
+    Feito com o CLIP, que já está carregado, e não com um detector de rostos.
+    O OpenCV entrava aqui só por isto e se mostrou frágil no runner — e o sinal
+    é usado apenas como desempate, então não precisa da precisão de um
+    detector: basta separar "tem gente em destaque" de "não tem".
+    """
+    probabilidades = _comparar(dados, [
+        "a photo showing people, with faces clearly visible",
+        "a photo of objects, a place or a landscape, with no people in it",
+    ])
+    return float(probabilidades[0])
 
 
 def pontuar_nsfw(dados):
@@ -111,18 +127,7 @@ def pontuar_relevancia(dados, consulta):
     A consulta disputa com os termos de RUIDOS no mesmo softmax: uma captura
     de tela com marca d'água perde para si mesma, ainda que o assunto bata.
     """
-    import torch
-
-    modelos = _carregar()
-    textos = [f"a photo of {consulta}"] + RUIDOS
-    entradas = modelos["clip_proc"](
-        text=textos, images=_imagem(dados), return_tensors="pt",
-        padding=True, truncation=True,
-    )
-    with torch.no_grad():
-        saida = modelos["clip"](**entradas)
-    probabilidades = saida.logits_per_image.softmax(dim=1)[0]
-    return float(probabilidades[0])
+    return float(_comparar(dados, [f"a photo of {consulta}"] + RUIDOS)[0])
 
 
 def analisar(dados, consulta):
@@ -132,7 +137,7 @@ def analisar(dados, consulta):
     'reprovada' traz o motivo quando a imagem não pode ser usada; vem None
     quando ela está liberada.
     """
-    resultado = {"rostos": 0, "nsfw": 0.0, "relevancia": 0.0, "reprovada": None}
+    resultado = {"pessoas": 0.0, "nsfw": 0.0, "relevancia": 0.0, "reprovada": None}
 
     resultado["nsfw"] = pontuar_nsfw(dados)
     if resultado["nsfw"] > LIMITE_NSFW:
@@ -146,20 +151,20 @@ def analisar(dados, consulta):
         )
         return resultado
 
-    resultado["rostos"] = contar_rostos(dados)
+    resultado["pessoas"] = pontuar_pessoas(dados)
     return resultado
 
 
 def ordenar(analisadas):
     """
-    Ordena as aprovadas: sem rosto primeiro, depois por relevância.
+    Ordena as aprovadas: sem pessoas primeiro, depois por relevância.
 
-    Preferir foto sem pessoa identificável é a regra de menor risco numa
+    Preferir foto sem pessoa em destaque é a regra de menor risco numa
     escolha que ninguém vai revisar — e conversa com a restrição da própria
     licença sobre pessoas reconhecíveis.
     """
     return sorted(
         analisadas,
-        key=lambda item: (item["analise"]["rostos"] > 0,
+        key=lambda item: (item["analise"]["pessoas"] > LIMITE_PESSOAS,
                           -item["analise"]["relevancia"]),
     )
