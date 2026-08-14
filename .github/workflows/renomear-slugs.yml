@@ -1,0 +1,110 @@
+name: Renomear slugs divergentes
+
+# Padroniza o endereço das 3 páginas cujo slug não bate com o nome da
+# categoria (item 3, Caso B de docs/PENDENCIAS.md):
+#
+#     /biotechs/     ->  /deeptechs/
+#     /health-tech/  ->  /healthtechs/
+#     /pet-techs/    ->  /pettechs/
+#
+# ⚠️ Workflow SEPARADO dos rotineiros de propósito. Renomear o slug de uma
+# página publicada faz o endereço antigo deixar de existir, e isso não é uma
+# opção para marcar de passagem junto com outras.
+#
+# A rede de segurança é o próprio script: depois de renomear, ele confere que o
+# endereço ANTIGO responde 301 para o novo e desfaz na hora se não responder,
+# parando antes de tocar nas páginas seguintes.
+#
+# Só roda quando você clica. Não tem agendamento.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Simular (não altera nada, só mostra o que faria)'
+        type: boolean
+        default: true
+      apenas:
+        description: 'Renomear só um slug (ex.: biotechs). Vazio = os três'
+        type: string
+        default: 'biotechs'
+      normalizar_botoes:
+        description: 'Apontar os botões de /startups/ para os endereços novos'
+        type: boolean
+        default: true
+      commit:
+        description: 'Fazer commit do src/config.py atualizado'
+        type: boolean
+        default: true
+
+jobs:
+  renomear:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Renomear os slugs
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS=()
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          [ -n "${{ inputs.apenas }}" ] && ARGS+=( --apenas "${{ inputs.apenas }}" )
+          python renomear_slug.py "${ARGS[@]}"
+
+      # O backup traz id e slug anterior de cada página tocada -- e o unico
+      # jeito de reverter depois que o runner some. Guardado mesmo quando o
+      # passo anterior falha, que e justamente quando ele importa.
+      - name: Guardar backups da renomeação
+        if: ${{ always() && inputs.dry_run == false }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-slugs
+          path: backups/
+          if-no-files-found: warn
+          retention-days: 90
+
+      # Os botoes de /startups/ sao os UNICOS links internos do site que
+      # apontavam para os enderecos antigos (varredura em 49 paginas/posts).
+      # Sem este passo eles passariam a dar um salto de redirecionamento --
+      # exatamente o que o Caso A do item 3 tinha acabado de eliminar.
+      - name: Apontar os botões para os endereços novos
+        if: ${{ inputs.normalizar_botoes == true && inputs.dry_run == false }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: python sincronizar_botoes.py --normalizar-urls
+
+      # Sem o commit, a proxima publicacao ainda usaria o endereco antigo do
+      # config.py.
+      - name: Commit do config atualizado
+        if: ${{ inputs.commit == true && inputs.dry_run == false }}
+        run: |
+          git add src/config.py
+          if git diff --cached --quiet src/config.py; then
+            echo "Nenhuma mudança em src/config.py — nada a commitar."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Atualiza ABAS_LINKS com os slugs padronizados
+
+          Commit automatico gerado por .github/workflows/renomear-slugs.yml"
+          git push

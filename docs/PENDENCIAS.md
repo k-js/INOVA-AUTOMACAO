@@ -98,15 +98,49 @@ deduzir erraria justamente no Caso B, onde o slug não segue o nome.
 Isso não afeta link já compartilhado: o redirecionamento é do WordPress e
 continua existindo. Só muda o destino de quem clica a partir da grade.
 
-### Caso B — em aberto
-
-Merece decisão consciente: `DEEPTECHS` apontando para `/biotechs/` sugere que a
-categoria foi renomeada em algum momento e a URL ficou para trás. Vale conferir
-o histórico antes de mexer.
+### Caso B — ferramenta pronta, 14/08/2026
 
 Diferença essencial para o Caso A: ali o link antigo continua existindo; aqui
 ele **deixa de existir**, e é o link já compartilhado que quebra — a menos que
-se crie o redirecionamento à mão.
+haja redirecionamento.
+
+**A suspeita sobre DEEPTECHS foi verificada e não procede.** A página em
+`/biotechs/` já se chama **"Deeptechs"** (título lido na API): o slug é resíduo
+de uma renomeação antiga da categoria, não uma página sobre outro assunto. Os
+três renomes são legítimos.
+
+**Risco medido, e menor do que parecia:**
+
+| | |
+|---|---|
+| plugin de redirecionamento no site | **nenhum** — nem Redirection, nem Rank Math, nem Yoast (`/wp-json/`) |
+| links internos para os slugs antigos | **só os botões de /startups/**, em 49 páginas/posts varridos |
+| links externos e indexação | dependem inteiramente do `_wp_old_slug` nativo do WordPress |
+
+Como não há plugin, tudo depende do WordPress guardar o slug anterior em
+`_wp_old_slug` e responder 301 — comportamento nativo que **não dá para provar
+sem antes renomear alguma coisa**.
+
+Por isso `renomear_slug.py` se confere e se desfaz sozinho:
+
+1. guarda backup com id, slug e título
+2. renomeia
+3. confere que a página responde no endereço novo
+4. confere que o endereço **antigo responde 301 para o novo**
+5. falhando 3 ou 4, desfaz na hora e **para** — as páginas seguintes nem são
+   tocadas
+
+A janela de exposição é de segundos. A conferência do passo 4 usa parâmetro
+aleatório na URL para furar cache: uma resposta cacheada daria 200 e esconderia
+um 404.
+
+Rodar em **Actions → "Renomear slugs divergentes"**, workflow separado dos
+rotineiros para não ser marcado de passagem. O padrão é `apenas: biotechs` —
+uma página primeiro, para descobrir se o redirecionamento nativo funciona aqui
+antes de mexer nas outras duas.
+
+O que o rollback **não** desfaz: 404 que alguém já levou na janela, e a
+reindexação. Por isso a conferência é automática e não depende de alguém olhar.
 
 ---
 
