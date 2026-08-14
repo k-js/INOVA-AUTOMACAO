@@ -833,17 +833,12 @@ function checarLinksErros() {
     props.deleteProperty('ultimaPos');
     props.deleteProperty('inconclusivos');
     relatar(
-      'Checagem finalizada: ' + todosLinks.length + ' links verificados.
-
-'
+      'Checagem finalizada: ' + todosLinks.length + ' links verificados.\n\n'
       + 'Listados em CHECAR ABAS: só os quebrados (endereço inexistente ou '
-      + 'domínio que não resolve).
-'
+      + 'domínio que não resolve).\n'
       + 'Não listados: ' + totalInconclusivos + ' inconclusivo(s) — site que '
       + 'recusou o robô, servidor fora do ar ou resposta demorada. Esses '
-      + 'costumam funcionar no navegador.
-
-'
+      + 'costumam funcionar no navegador.\n\n'
       + 'Para vê-los também, mude LISTAR_INCONCLUSIVOS para true.'
     );
     return;
