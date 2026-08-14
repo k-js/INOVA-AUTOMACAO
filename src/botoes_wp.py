@@ -323,3 +323,35 @@ def aplicar_botoes(slug, botoes, dry_run=False):
         )
 
     return f"{len(botoes)} botões aplicados em /{slug}/", backup
+
+
+def url_canonica(url, requests_=None):
+    """
+    Segue os redirecionamentos e devolve a URL final. Devolve a original em
+    caso de falha — melhor deixar como está do que apontar para lugar nenhum.
+
+    A grade acumulou caminhos que funcionam mas dão volta: /home/agtechs/ e
+    /home/health-tech/ passam por dois saltos, /home/startups/socialtechs por
+    três, e /indtechs (sem barra final) por um. O primeiro salto ainda vai para
+    http:// antes de voltar para https://.
+
+    Perguntar ao site qual é o destino é mais confiável do que eu deduzir o
+    slug: DEEPTECHS mora em /biotechs/ e HEALTHTECHS em /health-tech/, então
+    derivar a URL do nome do botão daria errado.
+    """
+    import requests as _requests
+    requests_ = requests_ or _requests
+
+    try:
+        resposta = requests_.head(url, allow_redirects=True, timeout=30,
+                                  headers={"User-Agent": "Mozilla/5.0"})
+        if resposta.status_code != 200:
+            return url
+        final = resposta.url
+    except Exception:
+        return url
+
+    # Nunca rebaixar para http: se o destino vier sem TLS, mantém o https.
+    if final.startswith("http://"):
+        final = "https://" + final[len("http://"):]
+    return final

@@ -27,10 +27,12 @@ RETAILTECHS — desfazendo as duas decisões de uma vez.
 
 ---
 
-## 2. `PET TECHS` vs `PETTECHS`
+## 2. `PET TECHS` vs `PETTECHS` — RESOLVIDO
 
-| Onde | Grafia |
-|---|---|
+O botão em /startups/ exibia `PET TECHS`, com espaço, enquanto a aba se chama
+`PETTECHS`. O rótulo foi corrigido; a URL (`/pet-techs/`) ficou como estava.
+
+---|---|
 | Botão em /startups/ | `PET TECHS` (com espaço) |
 | Aba na planilha | `PETTECHS` |
 | Slug da página | `/pet-techs/` |

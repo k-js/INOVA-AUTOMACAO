@@ -99,6 +99,64 @@ def pagina_publicada(url):
         return False
 
 
+def normalizar_urls(args):
+    """
+    Aponta cada botão direto para o destino final, sem redirecionamento.
+
+    A grade acumulou caminhos que funcionam mas dão volta: onze botões usam o
+    prefixo /home/, e três estão sem a barra final. O primeiro salto de cada um
+    ainda passa por http:// antes de voltar para https://.
+
+    Isto NÃO afeta quem já compartilhou uma URL antiga: o redirecionamento é do
+    WordPress, e continua existindo. Só muda o destino de quem clica a partir
+    desta página.
+
+    O destino é perguntado ao site, não deduzido do rótulo — DEEPTECHS mora em
+    /biotechs/ e HEALTHTECHS em /health-tech/, e deduzir daria errado.
+    """
+    print("=" * 64)
+    print(f"🔗 URLS DOS BOTÕES DE /{args.pagina}/")
+    print("=" * 64)
+
+    pagina = botoes_wp.obter_pagina(args.pagina)
+    if not pagina:
+        print(f"❌ Página '{args.pagina}' não encontrada.")
+        sys.exit(1)
+
+    existentes = botoes_wp.extrair_botoes(pagina.get("content", {}).get("raw", ""))
+    print(f"📋 {len(existentes)} botões hoje na página\n")
+
+    novos, mudaram = [], 0
+    for rotulo, url in existentes:
+        canonica = botoes_wp.url_canonica(url)
+        novos.append((rotulo, canonica))
+        if canonica != url:
+            mudaram += 1
+            curto = lambda u: u.replace("https://inova.ufpr.br", "")
+            print(f"   {rotulo[:24]:<26} {curto(url):<34} -> {curto(canonica)}")
+
+    if not mudaram:
+        print("✅ Todos os botões já apontam direto para o destino.")
+        return
+
+    # O rótulo é o que o visitante lê, e trocá-lo não é assunto deste modo.
+    if [r for r, _ in novos] != [r for r, _ in existentes]:
+        print("\n❌ os rótulos mudaram — abortando por segurança.")
+        sys.exit(1)
+
+    print(f"\n{mudaram} de {len(existentes)} botões a corrigir")
+    if args.dry_run:
+        print("(--dry-run: nada foi alterado)")
+        return
+
+    mensagem, backup = botoes_wp.aplicar_botoes(args.pagina, novos,
+                                                dry_run=False)
+    print(f"\n{mensagem}")
+    print(f"💾 Backup: {backup}")
+    print("\nPara desfazer:")
+    print(f"   python sincronizar_botoes.py --restaurar {backup}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
@@ -112,6 +170,9 @@ def main():
     parser.add_argument("--incluir-rascunhos", action="store_true",
                         help="adiciona também botões de páginas em rascunho "
                              "(elas dão 404 até serem publicadas)")
+    parser.add_argument("--normalizar-urls", action="store_true",
+                        help="aponta cada botão direto para o destino final, "
+                             "sem passar por redirecionamento")
     args = parser.parse_args()
 
     if args.listar_backups:
@@ -128,6 +189,10 @@ def main():
 
     if args.restaurar:
         print(botoes_wp.restaurar(args.restaurar, dry_run=args.dry_run))
+        return
+
+    if args.normalizar_urls:
+        normalizar_urls(args)
         return
 
     print("=" * 64)

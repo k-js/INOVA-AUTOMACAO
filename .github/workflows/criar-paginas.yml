@@ -40,6 +40,10 @@ on:
         description: 'Acrescentar os botões das 4 abas novas em /startups/ (faz backup antes)'
         type: boolean
         default: false
+      normalizar_urls_botoes:
+        description: 'Apontar os botões de /startups/ direto para o destino (sem redirecionamento)'
+        type: boolean
+        default: false
       corrigir_preambulo:
         description: 'Padronizar preâmbulo (CSS das tabelas, campo de busca, botão VOLTAR) e tirar capa herdada do modelo'
         type: boolean
@@ -179,6 +183,20 @@ jobs:
             ARGS="--dry-run --mostrar-modelo"
           fi
           python corrigir_preambulo.py $ARGS
+
+      # Onze botoes usam o prefixo /home/ e tres estao sem barra final: todos
+      # funcionam, mas dao um ou mais saltos de redirecionamento, o primeiro
+      # deles em http. Isto NAO afeta link ja compartilhado -- o
+      # redirecionamento e do WordPress e continua existindo.
+      - name: Normalizar URLs dos botões
+        if: ${{ inputs.normalizar_urls_botoes == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS=( --normalizar-urls )
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          python sincronizar_botoes.py "${ARGS[@]}"
 
       - name: Commit do config atualizado
         if: ${{ inputs.commit == true && inputs.dry_run == false }}
