@@ -26,7 +26,11 @@ import argparse
 
 for _fluxo in (sys.stdout, sys.stderr):
     try:
-        _fluxo.reconfigure(encoding="utf-8", errors="replace")
+        # line_buffering: fora de um terminal o Python segura a saída em
+        # buffer, e o log da Action fica vazio até o processo terminar —
+        # uma execução longa parece travada quando só está trabalhando.
+        _fluxo.reconfigure(encoding="utf-8", errors="replace",
+                           line_buffering=True)
     except (AttributeError, ValueError):
         pass
 
