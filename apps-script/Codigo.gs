@@ -596,8 +596,119 @@ function padronizarAbas() {
 // 3. Checagem de links quebrados (processa em lotes)
 // =====================================================================
 /**
+ * Códigos HTTP em que o site RESPONDEU, mas recusando a requisição automática.
+ *
+ * O link funciona no navegador. Tratar isso como link quebrado enchia a aba
+ * "CHECAR ABAS" de entradas sãs, e quem olhava acabava ignorando a lista toda.
+ *
+ * 429 e 503 são recusas temporárias; 401/403/405/406/409 são recusas de acesso;
+ * 418 é o que alguns firewalls devolvem para robô.
+ */
+var HTTP_RECUSA_ROBO = [401, 403, 405, 406, 409, 418, 429, 503];
+
+/** Códigos em que o endereço realmente não existe — o que de fato interessa. */
+var HTTP_NAO_EXISTE = [404, 410];
+
+/**
+ * Cabeçalho de navegador.
+ *
+ * Sem isto o Apps Script se identifica como robô do Google, e boa parte dos
+ * firewalls responde 403 — a maior causa isolada de falso positivo aqui.
+ */
+var CABECALHO_NAVEGADOR = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    + '(KHTML, like Gecko) Chrome/122.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+};
+
+/**
+ * Classifica a resposta de um link em (situação, motivo).
+ *
+ * situação: 'ok' | 'quebrado' | 'inconclusivo'
+ *
+ * A distinção é o ponto da função. 'quebrado' é o que exige alguém arrumar;
+ * 'inconclusivo' é o site tendo recusado o robô ou demorado a responder, e não
+ * diz nada sobre o link estar bom ou ruim.
+ *
+ * @param {number} codigo código HTTP, ou 0 quando a requisição nem completou
+ * @param {string} excecao mensagem do erro, quando houve
+ * @return {{situacao: string, motivo: string}}
+ */
+function classificarResposta(codigo, excecao) {
+  if (excecao) {
+    if (/dns|resolve|unknown host/i.test(excecao)) {
+      // Domínio inexistente é falha real: não há o que o navegador salve.
+      return { situacao: 'quebrado', motivo: 'domínio não existe' };
+    }
+    if (/timeout|timed out|deadline/i.test(excecao)) {
+      return { situacao: 'inconclusivo', motivo: 'sem resposta a tempo' };
+    }
+    if (/certificate|ssl|handshake/i.test(excecao)) {
+      return { situacao: 'inconclusivo', motivo: 'problema de certificado' };
+    }
+    return { situacao: 'inconclusivo', motivo: 'falha de conexão' };
+  }
+
+  if (codigo >= 200 && codigo < 400) {
+    return { situacao: 'ok', motivo: '' };
+  }
+  if (HTTP_NAO_EXISTE.indexOf(codigo) !== -1) {
+    return { situacao: 'quebrado', motivo: 'página não existe (' + codigo + ')' };
+  }
+  if (HTTP_RECUSA_ROBO.indexOf(codigo) !== -1) {
+    return { situacao: 'inconclusivo', motivo: 'site recusou o robô (' + codigo + ')' };
+  }
+  if (codigo >= 500) {
+    return { situacao: 'inconclusivo', motivo: 'servidor com problema (' + codigo + ')' };
+  }
+  return { situacao: 'quebrado', motivo: 'HTTP ' + codigo };
+}
+
+/**
+ * Testa um link e devolve a classificação.
+ *
+ * Repete UMA vez quando a primeira tentativa foi inconclusiva por demora: um
+ * site lento respondendo na segunda tentativa é comum, e virava falso positivo.
+ * Não repete quando o veredito já é conclusivo — repetir um 404 só gasta tempo.
+ *
+ * @param {string} url endereço a testar
+ * @return {{situacao: string, motivo: string}}
+ */
+function testarLink(url) {
+  var veredito = null;
+
+  for (var tentativa = 1; tentativa <= 2; tentativa++) {
+    try {
+      var resposta = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+        validateHttpsCertificates: false,
+        headers: CABECALHO_NAVEGADOR
+      });
+      veredito = classificarResposta(resposta.getResponseCode(), null);
+    } catch (e) {
+      veredito = classificarResposta(0, String(e && e.message ? e.message : e));
+    }
+
+    if (veredito.motivo !== 'sem resposta a tempo') return veredito;
+    Utilities.sleep(1000);
+  }
+
+  return veredito;
+}
+
+
+/**
  * Testa os links das abas de dados e registra os quebrados em "CHECAR ABAS"
- * (colunas C, D e E: link, organização, aba de origem).
+ * (colunas C a F: link, organização, aba de origem, motivo).
+ *
+ * Só entram na lista os links realmente quebrados. Os casos inconclusivos —
+ * site que recusou o robô, servidor fora do ar, resposta demorada — são
+ * contados e reportados no fim, mas não poluem a aba: eles não dizem que o
+ * link está ruim, e listá-los tornava a aba inútil.
+ *
+ * Para vê-los também, mude LISTAR_INCONCLUSIVOS para true; eles vêm com o
+ * motivo na coluna F.
  *
  * O Apps Script tem tempo limite de execução, então a varredura é feita em
  * lotes: cada chamada processa LOTE_TAMANHO links e guarda a posição. Rode
@@ -610,6 +721,10 @@ function padronizarAbas() {
 function checarLinksErros() {
   var LOTE_TAMANHO = 40;
   var PAUSA_MS = 500;
+
+  // Ponha true para listar também os casos inconclusivos, com o motivo na
+  // coluna F. Falso por padrão: são eles que tornavam a aba pouco confiável.
+  var LISTAR_INCONCLUSIVOS = false;
 
   var ss = obterPlanilha();
   var abaDestino = ss.getSheetByName('CHECAR ABAS');
@@ -683,39 +798,32 @@ function checarLinksErros() {
 
   // --- Processa o lote atual de links coletados ---
   var erros = [];
+  var inconclusivos = 0;
   var fim = Math.min(ultimaPos + LOTE_TAMANHO, todosLinks.length);
 
   for (var i = ultimaPos; i < fim; i++) {
     var item = todosLinks[i];
-    var status = 'OK';
+    var veredito = testarLink(item.url);
 
-    try {
-      var resposta = UrlFetchApp.fetch(item.url, {
-        muteHttpExceptions: true,
-        followRedirects: true,
-        validateHttpsCertificates: false
-      });
-      var codigo = resposta.getResponseCode();
-      // 403 e 500 são tolerados: muitos sites bloqueiam requisições
-      // automatizadas mas funcionam normalmente no navegador.
-      if (codigo !== 200 && codigo !== 403 && codigo !== 500) {
-        status = 'Erro ' + codigo;
-      }
-    } catch (e) {
-      status = 'Falhou';
-    }
-
-    if (status !== 'OK') {
-      erros.push([item.url, item.nome, item.aba]);
+    if (veredito.situacao === 'quebrado'
+        || (LISTAR_INCONCLUSIVOS && veredito.situacao === 'inconclusivo')) {
+      erros.push([item.url, item.nome, item.aba, veredito.motivo]);
+    } else if (veredito.situacao === 'inconclusivo') {
+      inconclusivos++;
     }
 
     if ((i - ultimaPos + 1) % 10 === 0) Utilities.sleep(PAUSA_MS);
   }
 
-  // Grava os erros deste lote na planilha de controle
+  // Acumula a contagem de inconclusivos entre os lotes, para o relato final.
+  var totalInconclusivos =
+    parseInt(props.getProperty('inconclusivos') || '0', 10) + inconclusivos;
+  props.setProperty('inconclusivos', String(totalInconclusivos));
+
+  // Grava os links quebrados deste lote na planilha de controle.
   if (erros.length > 0) {
     abaDestino
-      .getRange(abaDestino.getLastRow() + 1, 3, erros.length, 3)
+      .getRange(abaDestino.getLastRow() + 1, 3, erros.length, 4)
       .setValues(erros);
   }
 
@@ -723,8 +831,20 @@ function checarLinksErros() {
   if (fim >= todosLinks.length) {
     props.deleteProperty('todosLinks');
     props.deleteProperty('ultimaPos');
-    SpreadsheetApp.getActive().toast(
-      '✅ Checagem finalizada: ' + todosLinks.length + ' links verificados.'
+    props.deleteProperty('inconclusivos');
+    relatar(
+      'Checagem finalizada: ' + todosLinks.length + ' links verificados.
+
+'
+      + 'Listados em CHECAR ABAS: só os quebrados (endereço inexistente ou '
+      + 'domínio que não resolve).
+'
+      + 'Não listados: ' + totalInconclusivos + ' inconclusivo(s) — site que '
+      + 'recusou o robô, servidor fora do ar ou resposta demorada. Esses '
+      + 'costumam funcionar no navegador.
+
+'
+      + 'Para vê-los também, mude LISTAR_INCONCLUSIVOS para true.'
     );
     return;
   }

@@ -154,11 +154,30 @@ site, foi movida para `ABAS_IGNORADAS`.
 
 ---
 
-## 8. Falsos positivos na checagem de links
+## 8. Falsos positivos na checagem de links — RESOLVIDO
 
-`checarLinksErros` no Apps Script marca como quebrados links que funcionam no
-navegador — muitos sites bloqueiam requisições automatizadas. A função já
-tolera HTTP 403 e 500, mas há outros casos (timeout, bloqueio por user-agent,
-Cloudflare).
+`checarLinksErros` marcava como quebrado tudo que não fosse HTTP 200, 403 ou
+500 — inclusive 301, 429, 503 e qualquer exceção. A aba `CHECAR ABAS` enchia de
+links sãos, e a lista deixava de ser confiável.
 
-A aba `CHECAR ABAS` tem hoje várias entradas assim.
+Três mudanças, em 13/08/2026:
+
+**Cabeçalho de navegador.** O Apps Script se identificava como robô do Google, e
+boa parte dos firewalls responde 403 a isso. Era a maior causa isolada.
+
+**Classificação em vez de binário.** `classificarResposta()` separa três casos:
+
+| Situação | O que é | Vai para a aba? |
+|---|---|---|
+| `ok` | 2xx e 3xx | não |
+| `quebrado` | 404, 410, domínio que não resolve | **sim** |
+| `inconclusivo` | site recusou o robô (401/403/405/406/409/418/429/503), servidor fora (5xx), demora, certificado | não — só a contagem no relato |
+
+**Repetição única na demora.** Site lento que responde na segunda tentativa
+deixa de virar falso positivo. Não repete veredito conclusivo: repetir um 404
+só gasta tempo.
+
+A coluna F passa a trazer o motivo. Para listar também os inconclusivos, mude
+`LISTAR_INCONCLUSIVOS` para `true` no início da função.
+
+
