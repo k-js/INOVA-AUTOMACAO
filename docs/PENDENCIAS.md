@@ -209,4 +209,40 @@ na planilha entre rodadas faz a checagem recomeçar em vez de pular linhas.
 `SpreadsheetApp.getActive().toast()` saiu daqui e de `padronizarAbas`: devolve
 `null` em acionador de tempo, a mesma armadilha que `obterPlanilha()` resolve.
 
+### São 4.595 links — a checagem passou a rodar sozinha
+
+Medido no primeiro log que chegou ao fim de um lote:
+
+| | |
+|---|---|
+| links na planilha | **4.595** |
+| coleta das abas | ~31 s por rodada |
+| fetch | ~1,3 s por link |
+| total de rede | **~100 minutos** |
+
+Com `LOTE_TAMANHO = 40` seriam **115 execuções manuais**. O teto subiu para 500
+— quem governa o lote é a guarda de tempo de 4 min, e cabem ~150 links por
+rodada, ou seja ~30 rodadas.
+
+Trinta cliques ainda é o mesmo problema em menor escala, então entrou um
+acionador de tempo: `iniciarChecagemAutomatica()` roda uma rodada a cada 5 min
+e **`checarLinksErros` apaga o próprio acionador ao concluir** — sem isso ele
+encontraria os ponteiros zerados e recomeçaria a checagem para sempre. Ambos no
+menu **CHECAR LINKS** da planilha.
+
+Isso só é seguro porque o progresso passou a ser salvo link a link.
+
+⚠️ Conta pessoal do Google tem cota de **90 min/dia** de execução de script; a
+varredura completa passa disso e continua no dia seguinte, do ponto onde parou.
+Em conta Workspace (6 h/dia) cabe de uma vez.
+
+### `ID_PLANILHA` saiu do código
+
+Preenchido na constante, era apagado a cada `Ctrl+A` no editor — e os
+acionadores de tempo paravam sem avisar. Agora `obterPlanilha()` chama
+`idDaPlanilha()`, que lê **Configurações do projeto → Propriedades do script**
+quando a constante está vazia. A leitura é preguiçosa de propósito: no escopo
+global, `PropertiesService` falhando em `onOpen()` (acionador simples, com
+autorização reduzida) derrubaria o menu da planilha.
+
 

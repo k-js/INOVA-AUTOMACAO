@@ -100,8 +100,14 @@ var COLUNAS_IDENTIFICADOR = ['NOME', 'ORGANIZACAO', 'NOME OU ORGANIZACAO'];
  * planilha "ativa" fora de uma sessão de usuário. As funções agendadas
  * falhavam em 0 segundos por causa disso.
  *
- * Está no arquivo por ser o mesmo ID que já aparece na URL da planilha — não
- * é segredo. Quem tem acesso ao script já tem acesso à planilha.
+ * ⚠️ PREFIRA cadastrar em Configurações do projeto → Propriedades do script,
+ * com o nome ID_PLANILHA. Preenchido aqui, o valor é apagado toda vez que
+ * alguém cola uma versão nova do arquivo no editor — e os acionadores de tempo
+ * param de funcionar sem avisar. Na propriedade, ele sobrevive às colagens.
+ *
+ * Não é segredo: é o mesmo ID que já aparece na URL da planilha, e quem tem
+ * acesso ao script já tem acesso à planilha. A propriedade é por durabilidade,
+ * não por sigilo.
  *
  * Para descobrir: na URL da planilha, é o trecho entre /d/ e /edit
  *   docs.google.com/spreadsheets/d/<ID_AQUI>/edit
@@ -109,7 +115,7 @@ var COLUNAS_IDENTIFICADOR = ['NOME', 'ORGANIZACAO', 'NOME OU ORGANIZACAO'];
  * @type {string}
  * @const
  */
-var ID_PLANILHA = '';  // ← preencher com o ID da planilha
+var ID_PLANILHA = '';  // vazio = busca em Propriedades do script
 
 /**
  * Nome do arquivo HTML do diálogo, sem a extensão.
@@ -419,6 +425,30 @@ function checarAbasComStatus() {
 
 
 /**
+ * Devolve o ID da planilha, da constante ou das Propriedades do script.
+ *
+ * A propriedade é o lugar certo: ela sobrevive a colar uma versão nova do
+ * arquivo no editor, e a constante não. A constante continua funcionando para
+ * quem preferir, e vence quando preenchida.
+ *
+ * A leitura é preguiçosa, e não na carga do script, de propósito: onOpen() é
+ * um acionador simples e roda com autorização reduzida, onde PropertiesService
+ * pode falhar. No escopo global, essa falha derrubaria o menu da planilha.
+ *
+ * @return {string} ID da planilha, ou string vazia se não houver.
+ */
+function idDaPlanilha() {
+  if (ID_PLANILHA) return ID_PLANILHA;
+
+  try {
+    return PropertiesService.getScriptProperties()
+             .getProperty('ID_PLANILHA') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
  * Devolve a planilha, funcionando nos dois contextos de execução.
  *
  * getActiveSpreadsheet() só funciona quando há sessão de usuário: pelo editor,
@@ -428,21 +458,23 @@ function checarAbasComStatus() {
  * Por isso, quando não há planilha ativa, abre pelo ID.
  *
  * @return {!Spreadsheet}
- * @throws {Error} Se não houver planilha ativa nem ID_PLANILHA preenchido.
+ * @throws {Error} Se não houver planilha ativa nem ID cadastrado.
  */
 function obterPlanilha() {
   var planilha = SpreadsheetApp.getActiveSpreadsheet();
   if (planilha) return planilha;
 
-  if (!ID_PLANILHA) {
+  var id = idDaPlanilha();
+  if (!id) {
     throw new Error(
-      'Sem planilha ativa (execução por acionador de tempo) e ID_PLANILHA está '
-      + 'vazio. Preencha a constante ID_PLANILHA no início do Codigo.gs com o '
-      + 'ID que aparece na URL da planilha, entre /d/ e /edit.'
+      'Sem planilha ativa (execução por acionador de tempo) e nenhum ID '
+      + 'cadastrado.\n\nCadastre em Configurações do projeto → Propriedades do '
+      + 'script, com o nome ID_PLANILHA e o valor que aparece na URL da '
+      + 'planilha, entre /d/ e /edit.'
     );
   }
 
-  return SpreadsheetApp.openById(ID_PLANILHA);
+  return SpreadsheetApp.openById(id);
 }
 
 /**
@@ -779,7 +811,11 @@ function coletarLinks(ss) {
  * @return {void}
  */
 function checarLinksErros() {
-  var LOTE_TAMANHO = 40;
+  // Teto de segurança, não a medida real: quem governa o tamanho do lote é
+  // LIMITE_MS. Medido na planilha, cada link leva ~1,3s e a coleta inicial
+  // ~31s, então cabem uns 150 por rodada. Em 40, os 4.595 links exigiriam 115
+  // execuções; o teto alto deixa a guarda de tempo decidir.
+  var LOTE_TAMANHO = 500;
   var PAUSA_MS = 500;
 
   // Para antes do corte de 6 minutos do Apps Script. Estourar o limite mata a
@@ -886,6 +922,12 @@ function checarLinksErros() {
     props.deleteProperty('ultimaPos');
     props.deleteProperty('totalLinks');
     props.deleteProperty('inconclusivos');
+
+    // Desligar o acionador é parte de terminar. Sem isto ele dispararia de
+    // novo, encontraria os ponteiros zerados e recomeçaria a checagem inteira
+    // — de cinco em cinco minutos, indefinidamente.
+    var acionadores = removerAcionadoresDaChecagem();
+
     relatar(
       'Checagem finalizada: ' + todosLinks.length + ' links verificados.\n\n'
       + 'Listados em CHECAR ABAS: só os quebrados (endereço inexistente ou '
@@ -894,6 +936,7 @@ function checarLinksErros() {
       + 'recusou o robô, servidor fora do ar ou resposta demorada. Esses '
       + 'costumam funcionar no navegador.\n\n'
       + 'Para vê-los também, mude LISTAR_INCONCLUSIVOS para true.'
+      + (acionadores > 0 ? '\n\nA checagem automática foi desligada.' : '')
     );
     return;
   }
@@ -904,6 +947,107 @@ function checarLinksErros() {
   relatar(
     '🔎 ' + pos + '/' + todosLinks.length + ' links checados.\n\n'
     + 'Rode checarLinksErros de novo para continuar de onde parou.'
+  );
+}
+
+
+// =====================================================================
+// 3.1 Acionador automático da checagem
+// =====================================================================
+//
+// São 4.595 links a ~1,3s cada: cerca de 100 minutos de rede. Cabendo ~150
+// links por execução, isso é umas 30 rodadas. Ninguém vai clicar 30 vezes, e
+// esperar que clique é como perder a checagem por desistência.
+//
+// O acionador faz as rodadas sozinho e se desliga ao terminar. Só é seguro
+// porque o progresso agora é salvo link a link: uma rodada derrubada pelo
+// Google custa um link, não o dia inteiro.
+
+/**
+ * Nome da função chamada pelo acionador de tempo.
+ *
+ * Referência POR STRING, exigida pela API do ScriptApp — o editor não a
+ * verifica. Fica aqui para não se espalhar por três funções.
+ *
+ * @type {string}
+ * @const
+ */
+var FUNCAO_CHECAGEM = 'checarLinksErros';
+
+/**
+ * Minutos entre uma rodada e a seguinte.
+ *
+ * O Apps Script só aceita 1, 5, 10, 15 ou 30 em everyMinutes(). Cinco dá folga
+ * sobre os 4 minutos de cada rodada, sem sobrepor duas execuções.
+ *
+ * @type {number}
+ * @const
+ */
+var INTERVALO_CHECAGEM_MIN = 5;
+
+/**
+ * Remove os acionadores de tempo da checagem.
+ *
+ * @return {number} Quantos acionadores foram removidos.
+ */
+function removerAcionadoresDaChecagem() {
+  var removidos = 0;
+
+  ScriptApp.getProjectTriggers().forEach(function (acionador) {
+    if (acionador.getHandlerFunction() === FUNCAO_CHECAGEM) {
+      ScriptApp.deleteTrigger(acionador);
+      removidos++;
+    }
+  });
+
+  return removidos;
+}
+
+/**
+ * Liga o acionador que roda a checagem sozinha até acabar.
+ *
+ * Os links quebrados vão aparecendo na aba CHECAR ABAS conforme são achados,
+ * então dá para acompanhar sem esperar o fim.
+ *
+ * Pelo menu: CHECAR LINKS → "Checar links automaticamente".
+ *
+ * @return {void}
+ */
+function iniciarChecagemAutomatica() {
+  // Dois acionadores da mesma função rodariam ao mesmo tempo sobre a mesma
+  // posição salva, checando os mesmos links duas vezes.
+  removerAcionadoresDaChecagem();
+
+  ScriptApp.newTrigger(FUNCAO_CHECAGEM)
+    .timeBased()
+    .everyMinutes(INTERVALO_CHECAGEM_MIN)
+    .create();
+
+  relatar(
+    'Checagem automática ligada: uma rodada a cada '
+    + INTERVALO_CHECAGEM_MIN + ' minutos, retomando de onde a anterior parou.'
+    + '\n\nEla se desliga sozinha ao terminar. Os links quebrados vão '
+    + 'aparecendo na aba CHECAR ABAS conforme forem achados.'
+    + '\n\nPara interromper antes: menu CHECAR LINKS → Parar checagem '
+    + 'automática.'
+  );
+}
+
+/**
+ * Desliga o acionador automático.
+ *
+ * O progresso fica salvo: religar retoma de onde parou, sem repetir links.
+ *
+ * @return {void}
+ */
+function pararChecagemAutomatica() {
+  var removidos = removerAcionadoresDaChecagem();
+
+  relatar(
+    removidos > 0
+      ? 'Checagem automática desligada.\n\nO progresso está salvo — religar '
+        + 'retoma de onde parou, sem repetir os links já checados.'
+      : 'Não havia checagem automática ligada.'
   );
 }
 
@@ -924,6 +1068,9 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('CHECAR LINKS')
     .addItem('Editar link selecionado', 'abrirDialog')
+    .addSeparator()
+    .addItem('Checar links automaticamente', 'iniciarChecagemAutomatica')
+    .addItem('Parar checagem automática', 'pararChecagemAutomatica')
     .addToUi();
 }
 
