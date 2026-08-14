@@ -395,7 +395,7 @@ def repadronizar(args):
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
     pasta_backup = os.path.join(RAIZ, "backups", f"repadronizar-{carimbo}")
 
-    filtro = {a.strip().upper() for a in args.abas.split(",")} if args.abas else None
+    filtro = _ler_filtro(args, "Percorrendo todas as capas existentes...")
     feitas = pequenas = ja_ok = 0
 
     # ABAS_FORA não se aplica aqui. Ela existe por causa do layout da TABELA
@@ -521,6 +521,33 @@ def repadronizar(args):
         print("(--dry-run: nada foi alterado)")
     elif feitas:
         print(f"💾 Backups em backups/repadronizar-{carimbo}/")
+
+
+def _ler_filtro(args, rotulo):
+    """
+    Interpreta --abas e diz em voz alta o que entendeu.
+
+    Um filtro que nao casa com nenhum nome faz o percurso terminar em silencio,
+    como se nao houvesse trabalho — foi o que aconteceu duas vezes seguidas.
+    Melhor gastar tres linhas de log do que descobrir pelo site depois.
+    """
+    if not args.abas:
+        print(f"🔍 {rotulo} (campo 'abas' vazio)")
+        return None
+
+    filtro = {a.strip().upper() for a in args.abas.split(",") if a.strip()}
+    desconhecidas = filtro - set(config.ABAS_LINKS)
+    conhecidas = filtro & set(config.ABAS_LINKS)
+
+    print(f"🔍 Filtro: {len(filtro)} nome(s) informado(s), "
+          f"{len(conhecidas)} casaram com ABAS_LINKS")
+    if desconhecidas:
+        print("   ⚠️  não existem em ABAS_LINKS (serão ignorados):")
+        for d in sorted(desconhecidas):
+            print(f"        {d!r}")
+    if not conhecidas:
+        print("   ❌ nenhum nome casou — nada a fazer.")
+    return filtro
 
 
 def _gravar_alt(aba, pagina, partes, bloco, media_id, alt, dry_run, pasta_backup):
