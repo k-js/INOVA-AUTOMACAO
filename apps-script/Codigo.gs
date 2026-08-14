@@ -588,7 +588,10 @@ function padronizarAbas() {
     colunaStatus.setValues(statusVals);
   });
 
-  SpreadsheetApp.getActive().toast('✅ Formatação padronizada.');
+  // relatar() e não getActive().toast(): getActive() devolve null em acionador
+  // de tempo, e a função morreria na última linha depois de já ter feito todo
+  // o trabalho — a mesma armadilha que obterPlanilha() resolve lá em cima.
+  relatar('✅ Formatação padronizada.');
 }
 
 
@@ -699,6 +702,58 @@ function testarLink(url) {
 
 
 /**
+ * Coleta os links de todas as abas de dados, em ordem estável.
+ *
+ * É refeita a cada execução, de propósito. Guardar a lista em
+ * PropertiesService não funciona: o limite é de 9 KB por propriedade, e o JSON
+ * de mais de mil links passa de 100 KB. A gravação falhava, o progresso se
+ * perdia, e a checagem recomeçava do zero a cada rodada sem nunca terminar.
+ *
+ * Recoletar custa algumas leituras de planilha, sem rede. O caro aqui é o
+ * fetch de cada link, e esse continua sendo feito uma vez só.
+ *
+ * @param {!Spreadsheet} ss Planilha a varrer.
+ * @return {!Array<{url: string, nome: string, aba: string}>}
+ */
+function coletarLinks(ss) {
+  var links = [];
+
+  ss.getSheets().forEach(function (sheet) {
+    var nomeAba = sheet.getName();
+    if (ehAbaDeEstrutura(nomeAba)) return;
+
+    var valores = sheet.getDataRange().getValues();
+    if (valores.length < 2) return;
+
+    // Remove e isola a primeira linha (cabeçalhos) com segurança
+    var headers = valores.shift();
+    var indiceCabecalho = indexarCabecalho(headers);
+
+    var idxLink = acharColuna(indiceCabecalho, 'LINK');
+    if (idxLink === -1) return;
+
+    // A busca normalizada cobre de uma vez todas as grafias possíveis
+    // ('NOME', 'ORGANIZAÇÃO', 'ORGANIZACAO', 'Organização').
+    var idxNome = acharColunaIdentificador(indiceCabecalho);
+
+    valores.forEach(function (linha) {
+      var link = linha[idxLink];
+      if (typeof link === 'string' && link.match(/^https?:\/\//i)) {
+        // Formato de OBJETO nomeado para evitar bugs de leitura por posição.
+        links.push({
+          url: String(link).trim(),
+          nome: (idxNome !== -1) ? linha[idxNome] : '',
+          aba: nomeAba
+        });
+      }
+    });
+  });
+
+  return links;
+}
+
+
+/**
  * Testa os links das abas de dados e registra os quebrados em "CHECAR ABAS"
  * (colunas C a F: link, organização, aba de origem, motivo).
  *
@@ -714,6 +769,11 @@ function testarLink(url) {
  * lotes: cada chamada processa LOTE_TAMANHO links e guarda a posição. Rode
  * repetidamente até aparecer a mensagem de conclusão.
  *
+ * O progresso é gravado A CADA LINK, e não ao fim do lote. O Google derruba
+ * execuções longas com "Ocorreu um erro desconhecido", sem dizer onde nem por
+ * quê; salvando link a link, o que já foi checado continua checado e a rodada
+ * seguinte retoma do ponto exato.
+ *
  * Rodar pelo editor do Apps Script (Executar → checarLinksErros).
  *
  * @return {void}
@@ -722,9 +782,15 @@ function checarLinksErros() {
   var LOTE_TAMANHO = 40;
   var PAUSA_MS = 500;
 
+  // Para antes do corte de 6 minutos do Apps Script. Estourar o limite mata a
+  // execução no meio de um fetch, sem chance de salvar nada.
+  var LIMITE_MS = 4 * 60 * 1000;
+
   // Ponha true para listar também os casos inconclusivos, com o motivo na
   // coluna F. Falso por padrão: são eles que tornavam a aba pouco confiável.
   var LISTAR_INCONCLUSIVOS = false;
+
+  var comecou = Date.now();
 
   var ss = obterPlanilha();
   var abaDestino = ss.getSheetByName('CHECAR ABAS');
@@ -735,102 +801,90 @@ function checarLinksErros() {
 
   var props = PropertiesService.getScriptProperties();
 
-  // Carrega a lista da memória do Apps Script
-  var todosLinks = [];
-  try {
-    todosLinks = JSON.parse(props.getProperty('todosLinks') || '[]');
-  } catch (e) {
-    todosLinks = [];
+  // Resíduo das versões que tentavam guardar a lista inteira. Se ficar para
+  // trás, ocupa a cota de 500 KB do projeto sem servir para nada.
+  props.deleteProperty('todosLinks');
+
+  var todosLinks = coletarLinks(ss);
+  if (todosLinks.length === 0) {
+    relatar('Nenhum link encontrado para checar.');
+    return;
   }
 
   var ultimaPos = parseInt(props.getProperty('ultimaPos') || '0', 10);
+  var totalAnterior = parseInt(props.getProperty('totalLinks') || '0', 10);
 
-  // --- Primeira execução do ciclo: varre todas as abas para coletar os links ---
-  if (todosLinks.length === 0) {
-    ss.getSheets().forEach(function (sheet) {
-      var nomeAba = sheet.getName();
-      if (ehAbaDeEstrutura(nomeAba)) return;
+  // A posição salva só faz sentido sobre a mesma lista. Se a planilha ganhou
+  // ou perdeu links entre uma rodada e outra, a numeração deslocou: continuar
+  // de onde parou pularia uns e repetiria outros.
+  if (ultimaPos > 0 && totalAnterior !== todosLinks.length) {
+    console.log(
+      'A planilha mudou desde a última rodada (' + totalAnterior + ' → '
+      + todosLinks.length + ' links). A checagem recomeça do início.'
+    );
+    ultimaPos = 0;
+  }
 
-      var valores = sheet.getDataRange().getValues();
-      if (valores.length < 2) return;
-
-      // Remove e isola a primeira linha (cabeçalhos) com segurança
-      var headers = valores.shift();
-      var indiceCabecalho = indexarCabecalho(headers);
-
-      // Mapeia onde estão as colunas necessárias
-      var idxLink = acharColuna(indiceCabecalho, 'LINK');
-      if (idxLink === -1) return;
-
-      // A busca normalizada cobre de uma vez todas as grafias possíveis
-      // ('NOME', 'ORGANIZAÇÃO', 'ORGANIZACAO', 'Organização').
-      var idxNome = acharColunaIdentificador(indiceCabecalho);
-
-      // Varre as linhas de dados restantes
-      valores.forEach(function (linha) {
-        var link = linha[idxLink];
-        if (typeof link === 'string' && link.match(/^https?:\/\//i)) {
-          // Armazena em formato de OBJETO nomeado para evitar bugs de leitura
-          todosLinks.push({
-            url: link,
-            nome: (idxNome !== -1) ? linha[idxNome] : '',
-            aba: nomeAba
-          });
-        }
-      });
-    });
-
-    if (todosLinks.length === 0) {
-      relatar('Nenhum link encontrado para checar.');
-      return;
-    }
-
-    // Limpa registros anteriores na aba de checagem.
-    // Mantido o intervalo original C:F — a checagem grava em C, D e E, mas a
-    // coluna F pode ter conteúdo de versões anteriores. Não reduzir o alcance
-    // sem antes conferir o que existe em F na planilha.
+  // --- Começo de um ciclo: limpa o que a checagem anterior deixou ---
+  if (ultimaPos === 0) {
+    // Mantido o intervalo original C:F — a checagem grava em C, D, E e F, mas
+    // a coluna F pode ter conteúdo de versões anteriores. Não reduzir o
+    // alcance sem antes conferir o que existe em F na planilha.
     var ultimaLinha = abaDestino.getLastRow();
     if (ultimaLinha > 1) {
       abaDestino.getRange('C2:F' + ultimaLinha).clearContent();
     }
-    ultimaPos = 0;
+    props.setProperty('totalLinks', String(todosLinks.length));
+    props.setProperty('inconclusivos', '0');
   }
 
-  // --- Processa o lote atual de links coletados ---
-  var erros = [];
-  var inconclusivos = 0;
+  // --- Processa o lote atual ---
+  var totalInconclusivos =
+    parseInt(props.getProperty('inconclusivos') || '0', 10);
   var fim = Math.min(ultimaPos + LOTE_TAMANHO, todosLinks.length);
+  var pos = ultimaPos;
 
   for (var i = ultimaPos; i < fim; i++) {
+    if (Date.now() - comecou > LIMITE_MS) {
+      console.log('Parando em ' + i + ' para não estourar o tempo de execução.');
+      break;
+    }
+
     var item = todosLinks[i];
+
+    // O endereço vai para o log ANTES do fetch, de propósito: quando o Google
+    // derruba a execução com "erro desconhecido", esta linha é a única pista
+    // de qual link estava sendo testado na hora.
+    console.log((i + 1) + '/' + todosLinks.length + '  ' + item.url);
+
     var veredito = testarLink(item.url);
 
     if (veredito.situacao === 'quebrado'
         || (LISTAR_INCONCLUSIVOS && veredito.situacao === 'inconclusivo')) {
-      erros.push([item.url, item.nome, item.aba, veredito.motivo]);
+      // Gravado na hora, e não acumulado até o fim do lote: uma queda no meio
+      // levava junto tudo o que já tinha sido descoberto.
+      abaDestino
+        .getRange(abaDestino.getLastRow() + 1, 3, 1, 4)
+        .setValues([[item.url, item.nome, item.aba, veredito.motivo]]);
     } else if (veredito.situacao === 'inconclusivo') {
-      inconclusivos++;
+      totalInconclusivos++;
     }
+
+    // Uma escrita por link. São dois números curtos, muito longe do limite de
+    // 9 KB por propriedade — ao contrário da lista inteira, que estourava.
+    pos = i + 1;
+    props.setProperties({
+      ultimaPos: String(pos),
+      inconclusivos: String(totalInconclusivos)
+    });
 
     if ((i - ultimaPos + 1) % 10 === 0) Utilities.sleep(PAUSA_MS);
   }
 
-  // Acumula a contagem de inconclusivos entre os lotes, para o relato final.
-  var totalInconclusivos =
-    parseInt(props.getProperty('inconclusivos') || '0', 10) + inconclusivos;
-  props.setProperty('inconclusivos', String(totalInconclusivos));
-
-  // Grava os links quebrados deste lote na planilha de controle.
-  if (erros.length > 0) {
-    abaDestino
-      .getRange(abaDestino.getLastRow() + 1, 3, erros.length, 4)
-      .setValues(erros);
-  }
-
-  // --- Finalização ou avanço do lote: atualiza os ponteiros de paginação ---
-  if (fim >= todosLinks.length) {
-    props.deleteProperty('todosLinks');
+  // --- Finalização ou avanço do lote ---
+  if (pos >= todosLinks.length) {
     props.deleteProperty('ultimaPos');
+    props.deleteProperty('totalLinks');
     props.deleteProperty('inconclusivos');
     relatar(
       'Checagem finalizada: ' + todosLinks.length + ' links verificados.\n\n'
@@ -844,25 +898,13 @@ function checarLinksErros() {
     return;
   }
 
-  try {
-    // Atualiza os ponteiros de paginação na memória do sistema
-    props.setProperty('todosLinks', JSON.stringify(todosLinks));
-    props.setProperty('ultimaPos', String(fim));
-    SpreadsheetApp.getActive().toast(
-      '🔎 ' + fim + '/' + todosLinks.length + ' — rode de novo para continuar.'
-    );
-  } catch (err) {
-    // O limite por propriedade é de 9 KB; com muitos links o JSON estoura.
-    // Sem interromper aqui, a checagem recomeçaria do zero a cada execução,
-    // sem nunca terminar.
-    props.deleteProperty('todosLinks');
-    props.deleteProperty('ultimaPos');
-    relatar(
-      'Não foi possível salvar o progresso: são links demais para a memória '
-      + 'do Apps Script.\n\nA checagem foi interrompida. Reduza LOTE_TAMANHO '
-      + 'ou rode a checagem por partes.'
-    );
-  }
+  // A posição já foi salva a cada link dentro do laço: aqui é só o aviso.
+  // (Antes era um toast, mas SpreadsheetApp.getActive() devolve null em
+  // acionador de tempo — a mesma armadilha de getActiveSpreadsheet.)
+  relatar(
+    '🔎 ' + pos + '/' + todosLinks.length + ' links checados.\n\n'
+    + 'Rode checarLinksErros de novo para continuar de onde parou.'
+  );
 }
 
 

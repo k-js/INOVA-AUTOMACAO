@@ -180,4 +180,33 @@ só gasta tempo.
 A coluna F passa a trazer o motivo. Para listar também os inconclusivos, mude
 `LISTAR_INCONCLUSIVOS` para `true` no início da função.
 
+### A paginação nunca funcionou — RESOLVIDO em 14/08/2026
+
+Descoberto ao investigar um `Ocorreu um erro desconhecido` (erro genérico do
+Google) que derrubou a execução aos 2min39s.
+
+A função guardava a lista inteira de links em `PropertiesService`. **O limite é
+de 9 KB por propriedade**, e o JSON de mais de mil links passa de 100 KB: a
+gravação sempre falhava, caía no `catch`, apagava os ponteiros — e a execução
+seguinte recomeçava do zero. A mensagem "rode de novo até concluir" nunca
+chegava ao fim.
+
+Somava-se a isso: links quebrados e posição só eram gravados **ao fim do lote**.
+Qualquer queda no meio levava junto tudo o que já tinha sido descoberto.
+
+| Antes | Agora |
+|---|---|
+| lista inteira em `PropertiesService` (>100 KB vs. limite de 9 KB) | recoletada a cada execução (`coletarLinks`), sem rede |
+| posição salva ao fim do lote | salva **a cada link** (dois números curtos) |
+| quebrados gravados ao fim do lote | gravados na hora em que são achados |
+| nada no log | URL logada **antes** do fetch |
+| sem guarda de tempo | para aos 4 min, longe do corte de 6 min |
+
+A URL no log é o que permite saber em qual link o Google derrubou a execução —
+sem ela o erro é anônimo. Como a posição é validada contra `totalLinks`, mexer
+na planilha entre rodadas faz a checagem recomeçar em vez de pular linhas.
+
+`SpreadsheetApp.getActive().toast()` saiu daqui e de `padronizarAbas`: devolve
+`null` em acionador de tempo, a mesma armadilha que `obterPlanilha()` resolve.
+
 
