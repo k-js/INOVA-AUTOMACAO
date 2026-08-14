@@ -341,16 +341,23 @@ def aplicar(args):
 
         bloco, problemas = capa_wp.montar_bloco(bloco_modelo, url_midia, media_id,
                                                 item["alt"])
-        novo_pre = capa_wp.inserir_capa(pre, bloco) if bloco else None
+
+        # Página SEM capa recebe o bloco no começo; página que já tem uma tem o
+        # bloco SUBSTITUÍDO. Acrescentar nas duas deixaria a segunda com duas
+        # capas — a conferência barraria, e a troca nunca aconteceria.
+        novo_pre = None
+        if bloco:
+            atual = capa_wp.extrair_bloco_modelo(pre)
+            novo_pre = pre.replace(atual, bloco) if atual else capa_wp.inserir_capa(pre, bloco)
 
         # Mesma disciplina do preâmbulo: confere ANTES de gravar.
         if novo_pre:
-            if not P.tem_preambulo(novo_pre):
-                problemas.append("o CSS ou o campo de busca não sobreviveram")
+            if P.tem_preambulo(pre) and not P.tem_preambulo(novo_pre):
+                problemas.append("o CSS ou o campo de busca se perderam")
             if len(P.conteudo_do_preambulo(novo_pre)[0]) != 1:
                 problemas.append("a página ficou com um número inesperado de imagens")
-            if P.texto_editorial(pre) and not P.texto_editorial(novo_pre):
-                problemas.append("a descrição da página se perdeu")
+            if P.texto_editorial(pre) != P.texto_editorial(novo_pre):
+                problemas.append("a descrição da página mudou")
         if problemas:
             print(f"      ✗ não gravei: {'; '.join(problemas)}\n")
             continue
