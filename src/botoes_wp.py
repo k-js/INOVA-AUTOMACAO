@@ -355,3 +355,73 @@ def url_canonica(url, requests_=None):
     if final.startswith("http://"):
         final = "https://" + final[len("http://"):]
     return final
+
+
+def normalizar_hrefs(conteudo, apenas_do_site="https://inova.ufpr.br"):
+    """
+    Troca, no conteúdo bruto, cada endereço que redireciona pelo destino final.
+
+    Substituição cirúrgica de texto: nenhuma marcação é reconstruída. É a
+    diferença essencial para aplicar_botoes(), que remonta a grade inteira — e
+    que reestilizaria um botão fora do padrão dela, como o VOLTAR, que usa
+    <div class="wp-block-button"> sem a classe de largura.
+
+    Só mexe em endereços do próprio site: link externo não é da nossa conta, e
+    seguir redirecionamento de terceiro para reescrever a página seria pedir
+    problema.
+
+    Devolve (novo_conteudo, [(antigo, novo)]).
+    """
+    import re
+
+    encontrados = re.findall(rf'href="({re.escape(apenas_do_site)}[^"]*)"', conteudo)
+    trocas = []
+    novo = conteudo
+
+    for url in sorted(set(encontrados)):
+        canonica = url_canonica(url)
+        if canonica != url:
+            novo = novo.replace(f'href="{url}"', f'href="{canonica}"')
+            trocas.append((url, canonica))
+
+    return novo, trocas
+
+
+def conferir_hrefs(antes, depois, trocas):
+    """
+    Confere que a troca mexeu SÓ nos endereços. Lista os problemas achados.
+
+    A soma das diferenças de tamanho tem que bater com a diferença total: se
+    não bater, a substituição pegou mais do que os endereços.
+    """
+    import re
+
+    problemas = []
+
+    for elemento in ("<a ", "href=", "wp-block-button"):
+        if antes.count(elemento) != depois.count(elemento):
+            problemas.append(f"o número de '{elemento}' mudou")
+
+    textos = lambda h: re.findall(r'<a[^>]*>(.*?)</a>', h, re.S)
+    if textos(antes) != textos(depois):
+        problemas.append("o texto de algum link mudou")
+
+    esperado = sum(len(n) - len(a) for a, n in trocas)
+    if len(depois) - len(antes) != esperado:
+        problemas.append("a substituição mexeu em mais do que os endereços")
+
+    return problemas
+
+
+def gravar_conteudo(pagina_id, conteudo):
+    """Grava o conteúdo da página. Devolve o código HTTP."""
+    resposta = rede.com_retentativa(
+        lambda: requests.post(
+            f"{API}/pages/{pagina_id}",
+            auth=_auth(), headers=CABECALHOS,
+            json={"content": conteudo},
+            timeout=30,
+        ),
+        descricao=f"gravar conteúdo da página {pagina_id}",
+    )
+    return resposta.status_code

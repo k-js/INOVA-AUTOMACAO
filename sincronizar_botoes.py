@@ -123,35 +123,42 @@ def normalizar_urls(args):
         print(f"❌ Página '{args.pagina}' não encontrada.")
         sys.exit(1)
 
-    existentes = botoes_wp.extrair_botoes(pagina.get("content", {}).get("raw", ""))
-    print(f"📋 {len(existentes)} botões hoje na página\n")
-
-    novos, mudaram = [], 0
-    for rotulo, url in existentes:
-        canonica = botoes_wp.url_canonica(url)
-        novos.append((rotulo, canonica))
-        if canonica != url:
-            mudaram += 1
-            curto = lambda u: u.replace("https://inova.ufpr.br", "")
-            print(f"   {rotulo[:24]:<26} {curto(url):<34} -> {curto(canonica)}")
-
-    if not mudaram:
-        print("✅ Todos os botões já apontam direto para o destino.")
-        return
-
-    # O rótulo é o que o visitante lê, e trocá-lo não é assunto deste modo.
-    if [r for r, _ in novos] != [r for r, _ in existentes]:
-        print("\n❌ os rótulos mudaram — abortando por segurança.")
+    conteudo = pagina.get("content", {}).get("raw", "")
+    if not conteudo:
+        print("❌ não consegui ler o conteúdo bruto (verifique as permissões).")
         sys.exit(1)
 
-    print(f"\n{mudaram} de {len(existentes)} botões a corrigir")
+    # Substituição cirúrgica de texto, e NÃO reconstrução da grade: o VOLTAR
+    # usa <div class="wp-block-button"> sem a classe de largura, e remontar a
+    # grade o reestilizaria para corrigir um redirecionamento. Assim ele entra
+    # junto sem perder a aparência.
+    novo, trocas = botoes_wp.normalizar_hrefs(conteudo)
+
+    if not trocas:
+        print("✅ Todos os endereços já apontam direto para o destino.")
+        return
+
+    curto = lambda u: u.replace("https://inova.ufpr.br", "")
+    for antigo, canonico in trocas:
+        print(f"   {curto(antigo):<38} -> {curto(canonico)}")
+
+    problemas = botoes_wp.conferir_hrefs(conteudo, novo, trocas)
+    if problemas:
+        print(f"\n❌ não gravei: {'; '.join(problemas)}")
+        sys.exit(1)
+
+    print(f"\n{len(trocas)} endereço(s) a corrigir")
     if args.dry_run:
         print("(--dry-run: nada foi alterado)")
         return
 
-    mensagem, backup = botoes_wp.aplicar_botoes(args.pagina, novos,
-                                                dry_run=False)
-    print(f"\n{mensagem}")
+    backup = botoes_wp.salvar_backup(args.pagina, pagina)
+    resposta = botoes_wp.gravar_conteudo(pagina["id"], novo)
+    if resposta != 200:
+        print(f"\n❌ falha ao gravar (HTTP {resposta}). Backup: {backup}")
+        sys.exit(1)
+
+    print(f"\n✅ {len(trocas)} endereço(s) corrigido(s)")
     print(f"💾 Backup: {backup}")
     print("\nPara desfazer:")
     print(f"   python sincronizar_botoes.py --restaurar {backup}")
