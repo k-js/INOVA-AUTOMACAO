@@ -48,11 +48,19 @@ PAGINA_INDICE = "startups"
 
 # Abas tratadas por este script.
 #
-# Escopo deliberadamente restrito às 4 abas novas. A página tem outras
-# divergências (RETAILTECHS sem botão, PET TECHS vs PETTECHS, AGTECHS ignorada
-# mas com botão) que estão registradas em docs/PENDENCIAS.md e devem ser
-# resolvidas à parte — misturá-las aqui aumentaria o risco de uma mudança
-# grande numa página publicada.
+# ⚠️ A grade de /startups/ NÃO espelha ABAS_LINKS, e não deve espelhar:
+#
+#   RETAILTECHS   é publicada e mapeada, mas fica FORA da grade — decisão de
+#                 conteúdo, confirmada com a equipe em 13/08/2026.
+#   AGTECHS       está na grade e NÃO é publicada por esta automação: a página
+#                 dela leva a outro portfólio, alimentado por outra fonte.
+#
+# As duas são decisões, não falhas. Uma automação que igualasse as duas listas
+# apagaria o botão da AGTECHS e criaria o da RETAILTECHS, desfazendo ambas —
+# por isso a lista abaixo é explícita, e não derivada de ABAS_LINKS.
+#
+# As demais divergências (PET TECHS vs PETTECHS, prefixo /home/ nas URLs) estão
+# em docs/PENDENCIAS.md e são tratadas à parte.
 ABAS_ALVO = {
     "FASHIONTECHS",
     "GAMETECHS",

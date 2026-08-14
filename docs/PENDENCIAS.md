@@ -5,23 +5,25 @@ misturar com o trabalho em andamento. Nenhuma delas impede a publicação atual.
 
 ---
 
-## 1. Botões faltando em /startups/
+## 1. Botões faltando em /startups/ — RESOLVIDO
 
-A grade de botões de [inova.ufpr.br/startups](https://inova.ufpr.br/startups/)
-tem 21 botões, mas nem todas as abas publicáveis aparecem lá.
-
-**Sem botão na página:**
-
-| Aba | Situação |
+| Aba | Desfecho |
 |---|---|
-| `RETAILTECHS` | Página existe e está publicada — o botão sumiu da grade em algum momento |
-| `FASHIONTECHS` | Em tratamento |
-| `GAMETECHS` | Em tratamento |
-| `INSURTECHS` | Em tratamento |
-| `TRAVELTECHS` | Em tratamento |
+| `FASHIONTECHS` | botão criado |
+| `GAMETECHS` | botão criado |
+| `INSURTECHS` | botão criado |
+| `TRAVELTECHS` | botão criado |
+| `RETAILTECHS` | **não leva botão** — decisão da equipe, 13/08/2026 |
 
-`RETAILTECHS` é o caso mais claro: a página `/retailtechs-2/` está no ar e
-mapeada no `config.py`, mas quem entra por `/startups/` não chega nela.
+`RETAILTECHS` continua publicada e mapeada no `config.py`, mas fica fora da
+grade de /startups/ por decisão de conteúdo. Não é falha a corrigir.
+
+O mesmo vale, ao contrário, para `AGTECHS`: tem botão e não é publicada por
+esta automação, porque a página dela leva a outro portfólio (item 5).
+
+Em comum: **a grade de /startups/ não espelha `ABAS_LINKS`**. Uma automação que
+tentasse igualar as duas listas apagaria o botão da AGTECHS e criaria o da
+RETAILTECHS — desfazendo as duas decisões de uma vez.
 
 ---
 
