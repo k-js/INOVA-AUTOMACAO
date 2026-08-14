@@ -519,6 +519,64 @@ def repadronizar(args):
         print(f"💾 Backups em backups/repadronizar-{carimbo}/")
 
 
+def _gravar_alt(aba, pagina, partes, bloco, media_id, alt, dry_run, pasta_backup):
+    """
+    Escreve o alt no bloco da PÁGINA — e, de brinde, na biblioteca de mídia.
+
+    O que a página exibe vem do atributo alt dentro do bloco wp:cover. Gravar
+    só no alt_text da mídia não muda nada no site: foi o que aconteceu na
+    primeira versão do --legendar, que rodou sem erro e sem efeito.
+
+    Devolve True se gravou.
+    """
+    pre, tabela, sufixo = partes
+
+    novo_bloco, problemas = capa_wp.trocar_alt(bloco, alt)
+    if problemas:
+        print(f"      ✗ {'; '.join(problemas)}\n")
+        return False
+
+    novo_pre = pre.replace(bloco, novo_bloco)
+    if not P.tem_preambulo(novo_pre):
+        print("      ✗ o CSS ou o campo de busca não sobreviveram\n")
+        return False
+    if len(P.conteudo_do_preambulo(novo_pre)[0]) != 1:
+        print("      ✗ a página ficou com número inesperado de imagens\n")
+        return False
+
+    if dry_run:
+        print()
+        return False
+
+    os.makedirs(pasta_backup, exist_ok=True)
+    with open(os.path.join(pasta_backup, f"{pagina['id']}.json"), "w",
+              encoding="utf-8") as f:
+        json.dump({"pagina_id": pagina["id"], "aba": aba,
+                   "salvo_em": datetime.now().isoformat(timespec="seconds"),
+                   "conteudo": pre + tabela + sufixo}, f, ensure_ascii=False, indent=1)
+
+    gravou = rede.com_retentativa(
+        lambda: requests.post(
+            f"{API}/pages/{pagina['id']}", auth=_auth(), headers=CABECALHOS,
+            json={"content": novo_pre + tabela + sufixo}, timeout=60),
+        descricao=f"gravar alt na página {pagina['id']}",
+    )
+    if gravou.status_code != 200:
+        print(f"      ✗ falha (HTTP {gravou.status_code})\n")
+        return False
+
+    # A biblioteca também, para quem reaproveitar a imagem noutro lugar. Se
+    # falhar, não é motivo para dar a página como não gravada.
+    try:
+        requests.post(f"{API}/media/{media_id}", auth=_auth(),
+                      headers=CABECALHOS, json={"alt_text": alt}, timeout=30)
+    except requests.RequestException:
+        pass
+
+    print("      ✓ gravado\n")
+    return True
+
+
 def legendar(args):
     """
     Escreve o alt olhando a imagem, com um modelo de visão.
@@ -544,6 +602,9 @@ def legendar(args):
                    else "Procurando capas sem texto alternativo...") + "\n")
 
     feitas = 0
+    carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
+    pasta_backup = os.path.join(RAIZ, "backups", f"alt-{carimbo}")
+
     for aba, url in sorted(config.ABAS_LINKS.items()):
         if filtro and aba not in filtro:
             continue
