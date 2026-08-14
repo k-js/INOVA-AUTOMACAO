@@ -588,25 +588,18 @@ def legendar(args):
         print(f"      visão viu: {legenda}")
         print(f"      proposto : {novo}")
 
-        if args.dry_run or not novo:
+        if not novo:
             print()
             continue
-
-        gravou = rede.com_retentativa(
-            lambda: requests.post(f"{API}/media/{media_id}", auth=_auth(),
-                                  headers=CABECALHOS, json={"alt_text": novo},
-                                  timeout=30),
-            descricao=f"gravar alt da mídia {media_id}",
-        )
-        if gravou.status_code == 200:
-            print("      ✓ gravado\n")
+        if _gravar_alt(aba, pagina, partes, bloco, media_id, novo,
+                       args.dry_run, pasta_backup):
             feitas += 1
-        else:
-            print(f"      ✗ falha (HTTP {gravou.status_code})\n")
 
     print("=" * 64)
     print(f"{feitas} alt(s) gravado(s)" if not args.dry_run
           else "(--dry-run: nada foi alterado)")
+    if feitas:
+        print(f"💾 Backups em backups/alt-{carimbo}/")
 
 
 def refazer_alt(args):
@@ -631,6 +624,9 @@ def refazer_alt(args):
         print("❌ Informe --abas: reescrever o alt de todas de uma vez\n"
               "   gastaria chamadas à toa nas que já estão boas.")
         sys.exit(1)
+
+    carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
+    pasta_backup = os.path.join(RAIZ, "backups", f"alt-{carimbo}")
 
     for aba in sorted(filtro):
         url = config.ABAS_LINKS.get(aba)
@@ -660,21 +656,16 @@ def refazer_alt(args):
         print(f"      antes : {capa_wp.extrair_alt(bloco)}")
         print(f"      agora : {novo}")
 
-        if args.dry_run or not novo:
+        if not novo:
             print()
             continue
-
-        resposta = rede.com_retentativa(
-            lambda: requests.post(f"{API}/media/{media_id}", auth=_auth(),
-                                  headers=CABECALHOS, json={"alt_text": novo},
-                                  timeout=30),
-            descricao=f"gravar alt da mídia {media_id}",
-        )
-        print("      ✓ gravado\n" if resposta.status_code == 200
-              else f"      ✗ falha (HTTP {resposta.status_code})\n")
+        _gravar_alt(aba, pagina, partes, bloco, media_id, novo,
+                    args.dry_run, pasta_backup)
 
     if args.dry_run:
         print("(--dry-run: nada foi alterado)")
+    else:
+        print(f"💾 Backups em backups/alt-{carimbo}/")
 
 
 def main():

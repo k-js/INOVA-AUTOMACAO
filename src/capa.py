@@ -126,6 +126,27 @@ def extrair_alt(bloco):
     return achado.group(1).strip() if achado else ""
 
 
+def trocar_alt(bloco, alt):
+    """
+    Troca o texto alternativo DENTRO do bloco. Devolve (bloco, problemas).
+
+    É aqui que o alt precisa ser escrito: o que a página exibe vem do atributo
+    alt do <img> dentro do bloco wp:cover, guardado no conteúdo do post. O
+    campo alt_text da biblioteca de mídia é outro, e o WordPress não o usa para
+    renderizar o bloco — escrever só lá não muda nada na página.
+    """
+    # As aspas viram entidade para não fecharem o atributo antes da hora. A
+    # conferência compara com o valor ESCAPADO — comparar com o original
+    # acusaria falha sempre que o texto tivesse aspas.
+    escapado = alt.strip().replace('"', "&quot;")
+    novo, trocas = re.subn(r'alt="[^"]*"', f'alt="{escapado}"', bloco, count=1)
+    if not trocas:
+        return None, ["não achei o atributo alt no bloco"]
+    if extrair_alt(novo) != escapado:
+        return None, ["o alt não sobreviveu à substituição"]
+    return novo, []
+
+
 def media_id_do_bloco(bloco):
     """O id da mídia referenciada pelo bloco, ou None."""
     achado = re.search(r"wp-image-(\d+)", bloco)
