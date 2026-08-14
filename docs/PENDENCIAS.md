@@ -140,8 +140,9 @@ coluna pelo nome e exibe só a que existe, então cada uma passa a mostrar a sua
 funciona: o gerador mostra a coluna UF e omite a de país. Não é problema, só
 um nome de lista que não descreve bem o caso.
 
-`PERÍODICOS CIENTÍFICOS` segue sem geografia por decisão de conteúdo, embora
-tenha a coluna `PAÍS` na planilha. Confirmar se é intencional.
+`PERÍODICOS CIENTÍFICOS` também tinha a coluna `PAÍS` escondida pelo mesmo
+motivo, e passou a exibi-la (commit `4c06737`). Com isso `ABAS_SEM_GEOGRAFIA`
+ficou vazia: nenhuma aba esconde mais coluna que existe na planilha.
 
 ---
 
