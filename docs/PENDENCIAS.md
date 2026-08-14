@@ -30,22 +30,11 @@ RETAILTECHS — desfazendo as duas decisões de uma vez.
 ## 2. `PET TECHS` vs `PETTECHS` — RESOLVIDO
 
 O botão em /startups/ exibia `PET TECHS`, com espaço, enquanto a aba se chama
-`PETTECHS`. O rótulo foi corrigido; a URL (`/pet-techs/`) ficou como estava.
+`PETTECHS`. O rótulo foi corrigido na sincronização de botões; a URL
+(`/pet-techs/`) ficou como estava.
 
----|---|
-| Botão em /startups/ | `PET TECHS` (com espaço) |
-| Aba na planilha | `PETTECHS` |
-| Slug da página | `/pet-techs/` |
-
-São a mesma coisa. A comparação normalizada não casa as duas (`PET TECHS` vira
-`PET TECHS`, `PETTECHS` vira `PETTECHS`), então qualquer automação que compare
-botões com abas vai tratá-las como itens diferentes.
-
-**Mudar só o rótulo do botão** para `PETTECHS` é seguro e resolve a
-comparação — não mexe na página nem na URL.
-
-Alinhar também o slug (`/pet-techs/` → `/pettechs/`) é outra história: cai no
-item 3 abaixo, com os riscos descritos lá.
+Alinhar também o slug (`/pet-techs/` → `/pettechs/`) é outra história, e cai no
+Caso B do item 3.
 
 ---
 
@@ -96,14 +85,28 @@ Se for feito, o caminho seguro é: renomear o slug **e** criar um
 redirecionamento do endereço antigo para o novo (plugin de redirect ou regra
 no servidor), nunca renomear e deixar o antigo dar 404.
 
-### Recomendação
+### Caso A — RESOLVIDO em 13/08/2026
 
-Tratar o **Caso A separadamente** — é ganho real com risco quase nulo, e
-resolve 9 dos 11 desalinhamentos.
+Medido no site: `/home/...` responde **301** para o endereço canônico, e
+`/home/startups/socialtechs` chega a dar **três saltos**. O primeiro salto de
+cada um passa por `http://` antes de voltar para `https://`.
 
-O **Caso B** merece decisão consciente: `DEEPTECHS` apontando para
-`/biotechs/` sugere que a categoria foi renomeada em algum momento e a URL
-ficou para trás. Vale conferir o histórico antes de mexer.
+`sincronizar_botoes.py --normalizar-urls` aponta cada botão direto para o
+destino. Ele **pergunta ao site** qual é o destino em vez de deduzir do rótulo —
+deduzir erraria justamente no Caso B, onde o slug não segue o nome.
+
+Isso não afeta link já compartilhado: o redirecionamento é do WordPress e
+continua existindo. Só muda o destino de quem clica a partir da grade.
+
+### Caso B — em aberto
+
+Merece decisão consciente: `DEEPTECHS` apontando para `/biotechs/` sugere que a
+categoria foi renomeada em algum momento e a URL ficou para trás. Vale conferir
+o histórico antes de mexer.
+
+Diferença essencial para o Caso A: ali o link antigo continua existindo; aqui
+ele **deixa de existir**, e é o link já compartilhado que quebra — a menos que
+se crie o redirecionamento à mão.
 
 ---
 
