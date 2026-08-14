@@ -28,6 +28,10 @@ on:
         description: 'Renomear só um slug (ex.: biotechs). Vazio = os três'
         type: string
         default: 'biotechs'
+      aceitar_404_antigo:
+        description: 'Seguir mesmo que o endereço antigo passe a dar 404 (decisão da equipe, 14/08/2026)'
+        type: boolean
+        default: false
       normalizar_botoes:
         description: 'Apontar os botões de /startups/ para os endereços novos'
         type: boolean
@@ -66,6 +70,7 @@ jobs:
           ARGS=()
           [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
           [ -n "${{ inputs.apenas }}" ] && ARGS+=( --apenas "${{ inputs.apenas }}" )
+          [ "${{ inputs.aceitar_404_antigo }}" = "true" ] && ARGS+=( --aceitar-404-antigo )
           python renomear_slug.py "${ARGS[@]}"
 
       # O backup traz id e slug anterior de cada página tocada -- e o unico

@@ -169,10 +169,36 @@ Para fazer, é preciso antes criar o redirecionamento. O site tem o plugin
 **Code Snippets** instalado (`code-snippets/v1` em `/wp-json/`), então um
 trecho de PHP com o mapa dos três endereços resolveria sem instalar nada novo.
 
-⚠️ Antes disso, vale a pergunta: o ganho é consistência estética de URL.
-`/biotechs/` funciona, está indexado e não atrapalha a automação — `ABAS_LINKS`
-mapeia o endereço real de cada aba. O custo passou a ser mexer no PHP de um
-site de universidade federal para manter um redirecionamento permanente.
+### Decisão da equipe, 14/08/2026: seguir sem redirecionamento
+
+Consultada sobre criar o redirecionamento antes (Code Snippets ou plugin), a
+equipe optou por não criar: *"se alguém tem a URL antiga, paciência, vamos
+passar o link novo"*.
+
+`renomear_slug.py --aceitar-404-antigo` implementa isso. A flag **não remove a
+conferência** — ela continua rodando e o veredito continua no log; só deixa de
+reverter. A escolha fica visível na linha de comando e no registro da execução,
+em vez de virar uma conferência apagada do código.
+
+A conferência do endereço **novo** continua revertendo sempre: aceitar 404 no
+antigo é uma decisão, deixar a página fora do ar não é.
+
+O que foi aceito, explicitamente:
+
+| | |
+|---|---|
+| quem tem o link antigo | recebe o novo da equipe — combinado |
+| **quem chega pela busca do Google** | cai em 404 até a reindexação, e não há a quem avisar |
+| botões de /startups/ | atualizados no mesmo workflow |
+| outros links internos | nenhum (varredura em 49 páginas/posts) |
+
+📌 O segundo item é o que encurta com trabalho: o site tem **Site Kit**
+instalado, então pedir a reindexação das URLs novas no Google Search Console
+logo após o renome reduz a janela de semanas para dias. O script imprime as
+URLs prontas para isso ao terminar.
+
+Rodar em **Actions → "Renomear slugs divergentes"**, marcando
+`aceitar_404_antigo`. Sem essa marca, o script reverte como antes.
 
 ---
 

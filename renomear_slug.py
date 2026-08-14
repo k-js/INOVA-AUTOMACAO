@@ -28,16 +28,38 @@ Por isso cada renome aqui se confere e se desfaz sozinho:
     5. se 3 ou 4 falharem, desfaz na hora e para -- as páginas seguintes
        nem chegam a ser tocadas
 
-A janela de exposição é de segundos, e não "até alguém reparar". Se o
-_wp_old_slug não funcionar neste site, descobrimos na primeira página, com ela
-já restaurada.
+A janela de exposição é de segundos, e não "até alguém reparar".
 
 A conferência do endereço antigo usa um parâmetro aleatório na URL para furar
 cache: uma página servida do cache responderia 200 e esconderia um 404.
 
+Testado em 14/08/2026: o passo 4 falha neste site, e a causa é do WordPress.
+`wp_check_for_changed_slugs()` retorna cedo para tipos hierárquicos -- "we're
+only concerned with published, non-hierarchical objects" -- e páginas são
+hierárquicas. O `_wp_old_slug` nunca chega a ser gravado. Redirecionamento de
+slug antigo funciona para POSTS, não para PAGES. Somado à ausência de plugin de
+redirect, não há redirecionamento nenhum a esperar.
+
+--aceitar-404-antigo
+--------------------
+Decisão da equipe em 14/08/2026: seguir sem redirecionamento. Quem tiver a URL
+antiga recebe a nova.
+
+A flag NÃO remove a conferência: ela continua rodando e o veredito continua no
+log -- só deixa de reverter. A intenção é que a escolha apareça na linha de
+comando e no log, e não que o código esqueça que o problema existe.
+
+⚠️ O custo não é só quem tem o link: o endereço antigo está indexado, e quem
+chegar pela busca cai em 404 até o Google reindexar. O site tem Site Kit, então
+vale pedir reindexação das URLs novas no Search Console logo depois.
+
+A conferência do endereço NOVO (passo 3) continua revertendo sempre. Aceitar
+404 no antigo é uma decisão; deixar a página fora do ar não é.
+
 Uso:
     python renomear_slug.py --dry-run        # mostra o que faria
     python renomear_slug.py                  # aplica, com conferência
+    python renomear_slug.py --aceitar-404-antigo
     python renomear_slug.py --apenas biotechs
     python renomear_slug.py --listar-backups
     python renomear_slug.py --desfazer backups/slug-biotechs-<data>.json
@@ -210,11 +232,14 @@ def atualizar_config(aba, url_nova):
 # ---------------------------------------------------------------------
 # Operação
 # ---------------------------------------------------------------------
-def renomear(slug_antigo, slug_novo, aba, dry_run=False):
+def renomear(slug_antigo, slug_novo, aba, dry_run=False, aceitar_404=False):
     """
     Renomeia uma página e confere o resultado, desfazendo se algo não bater.
 
-    Devolve True se a página ficou no endereço novo com o antigo redirecionando.
+    Com aceitar_404, o endereço antigo virando 404 deixa de reverter — mas
+    continua sendo conferido e relatado. Ver o cabeçalho do arquivo.
+
+    Devolve True se a página ficou no endereço novo.
     """
     print(f"\n/{slug_antigo}/  ->  /{slug_novo}/   ({aba})")
 
@@ -269,9 +294,18 @@ def renomear(slug_antigo, slug_novo, aba, dry_run=False):
 
     print(f"   ✅ /{slug_novo}/ responde")
 
-    # --- Conferência 2: o endereço antigo redireciona (a que importa) ---
+    # --- Conferência 2: o endereço antigo redireciona ---
+    #
+    # Continua rodando mesmo com --aceitar-404-antigo. O veredito no log é o
+    # registro de o que exatamente foi aceito, e em qual data.
     ok, detalhe = redireciona_para(slug_antigo, slug_novo)
-    if not ok:
+
+    if ok:
+        print(f"   ✅ /{slug_antigo}/ redireciona: {detalhe}")
+    elif aceitar_404:
+        print(f"   ⚠️  /{slug_antigo}/ não redireciona: {detalhe}")
+        print("      aceito por decisão da equipe (--aceitar-404-antigo)")
+    else:
         print(f"   ❌ /{slug_antigo}/ NÃO redireciona: {detalhe}")
         print("      link já compartilhado quebraria — desfazendo...")
         gravar_slug(pagina["id"], slug_antigo)
@@ -279,8 +313,6 @@ def renomear(slug_antigo, slug_novo, aba, dry_run=False):
         print(f"   ↩️  de volta em /{slug_antigo}/ "
               f"({'responde' if responde_ok(slug_antigo) else 'CONFERIR À MÃO'})")
         return False
-
-    print(f"   ✅ /{slug_antigo}/ redireciona: {detalhe}")
 
     alterou, erro = atualizar_config(aba, f"{SITE}/{slug_novo}/")
     print(f"   {'✅ src/config.py atualizado' if alterou else f'⚠️  config: {erro}'}")
@@ -312,6 +344,10 @@ def main():
                         help="mostra o que faria, sem alterar nada")
     parser.add_argument("--apenas", metavar="SLUG",
                         help="renomeia só a página deste slug atual")
+    parser.add_argument("--aceitar-404-antigo", action="store_true",
+                        help="segue mesmo que o endereço antigo passe a dar "
+                             "404. A conferência continua rodando e o veredito "
+                             "continua no log — só deixa de reverter")
     parser.add_argument("--listar-backups", action="store_true",
                         help="lista os backups de renomeação e sai")
     parser.add_argument("--desfazer", metavar="ARQUIVO",
@@ -350,9 +386,16 @@ def main():
     if args.dry_run:
         print("\n(--dry-run: nada será alterado)")
 
+    if args.aceitar_404_antigo:
+        print("\n⚠️  --aceitar-404-antigo: os endereços antigos passarão a dar "
+              "404.\n   Quem chegar por link antigo ou pela busca do Google "
+              "não encontra a página\n   até a reindexação. Decisão da equipe "
+              "em 14/08/2026.")
+
     feitos = []
     for slug_antigo, slug_novo, aba in alvos:
-        if renomear(slug_antigo, slug_novo, aba, dry_run=args.dry_run):
+        if renomear(slug_antigo, slug_novo, aba, dry_run=args.dry_run,
+                    aceitar_404=args.aceitar_404_antigo):
             feitos.append((slug_antigo, slug_novo))
             continue
 
@@ -380,11 +423,22 @@ def main():
 
     print(f"✅ {len(feitos)} página(s) renomeadas e conferidas")
     for a, n in feitos:
-        print(f"   /{a}/ -> /{n}/   (antigo redirecionando)")
+        situacao = "antigo em 404" if args.aceitar_404_antigo else "antigo redirecionando"
+        print(f"   /{a}/ -> /{n}/   ({situacao})")
 
     if feitos:
         print("\nFalta apontar os botões de /startups/ para os endereços novos:")
         print("   python sincronizar_botoes.py --normalizar-urls")
+
+        if args.aceitar_404_antigo:
+            # A reindexação é o que fecha a janela de 404 vindo da busca, e é
+            # a única parte que ninguém faz por engano depois.
+            print("\n📌 Peça a reindexação no Google Search Console (o site tem "
+                  "Site Kit):")
+            for _, n in feitos:
+                print(f"   {SITE}/{n}/")
+            print("   Sem isso, a busca leva a 404 por semanas em vez de dias.")
+
         print("\nPara reverter:")
         print("   python renomear_slug.py --listar-backups")
 
