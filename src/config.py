@@ -83,7 +83,7 @@ ABAS_LINKS = {
     "INSURTECHS": "https://inova.ufpr.br/insurtechs/",
     "LAWTECHS E LEGALTECHS": "https://inova.ufpr.br/lawtechs-e-legaltechs/",
     "LOGTECHS": "https://inova.ufpr.br/logtechs/",
-    "MANAGETECHS": "https://ufpr.br/managetechs/",
+    "MANAGETECHS": "https://inova.ufpr.br/managetechs/",
     "MARTECHS": "https://inova.ufpr.br/martechs/",
     "MOBITECHS": "https://inova.ufpr.br/mobitechs/",
     "PARQUES CIENTÍFICOS": "https://inova.ufpr.br/parques-tecnologicos/",

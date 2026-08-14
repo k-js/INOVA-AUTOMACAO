@@ -345,6 +345,38 @@ def checar_abas_selecionadas(planilha, nomes_reais):
 
 
 # ---------------------------------------------------------------------
+SITE_ESPERADO = "inova.ufpr.br"
+
+
+def checar_urls():
+    """
+    Confere as URLs de ABAS_LINKS: host certo e slug único.
+
+    A publicação procura a página pelo SLUG, não pela URL inteira — por isso
+    'https://ufpr.br/managetechs/' funcionou por meses apesar de ser um 404.
+    O host errado só aparece para quem clica no link, e ninguém clica num
+    arquivo de configuração. Daí a checagem.
+    """
+    from urllib.parse import urlparse
+    from collections import Counter
+
+    for aba, url in sorted(config.ABAS_LINKS.items()):
+        host = urlparse(url).netloc
+        if host != SITE_ESPERADO:
+            erro(f"'{aba}' aponta para '{host}', e não para {SITE_ESPERADO}:\n"
+                 f"      {url}\n"
+                 f"      A publicação acha a página pelo slug e funciona assim "
+                 f"mesmo, mas o link está quebrado para quem clicar.")
+
+    slugs = Counter(u.rstrip("/").rsplit("/", 1)[-1] for u in config.ABAS_LINKS.values())
+    for slug, quantas in slugs.items():
+        if quantas > 1:
+            donas = [a for a, u in config.ABAS_LINKS.items()
+                     if u.rstrip("/").rsplit("/", 1)[-1] == slug]
+            erro(f"o slug '{slug}' está em {quantas} abas ({', '.join(donas)}) — "
+                 f"as duas publicariam na MESMA página, uma por cima da outra.")
+
+
 def main():
     print("=" * 64)
     print("🔍 VALIDAÇÃO DA PLANILHA")
@@ -356,6 +388,7 @@ def main():
     nomes_reais = [ws.title for ws in planilha.worksheets()]
     print(f"   {len(nomes_reais)} abas encontradas.")
 
+    checar_urls()
     checar_abas(nomes_reais)
     checar_colunas(planilha, nomes_reais)
     checar_abas_selecionadas(planilha, nomes_reais)
