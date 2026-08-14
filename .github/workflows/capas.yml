@@ -104,17 +104,14 @@ jobs:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
-          ARGS="--analisar --limite ${{ inputs.limite }}"
-          if [ "${{ inputs.substituir }}" = "true" ]; then
-            ARGS="$ARGS --substituir"
-          fi
-          if [ -n "${{ inputs.abas }}" ]; then
-            ARGS="$ARGS --abas ${{ inputs.abas }}"
-          fi
-          if [ -n "${{ inputs.modelo }}" ]; then
-            ARGS="$ARGS --modelo ${{ inputs.modelo }}"
-          fi
-          python gerar_capas.py $ARGS
+          # Array, e nao string: nomes de aba tem espaco ("LAWTECHS E
+          # LEGALTECHS"), e uma string sem aspas seria quebrada em varios
+          # argumentos pelo shell.
+          ARGS=( --analisar --limite "${{ inputs.limite }}" )
+          [ "${{ inputs.substituir }}" = "true" ] && ARGS+=( --substituir )
+          [ -n "${{ inputs.abas }}" ] && ARGS+=( --abas "${{ inputs.abas }}" )
+          [ -n "${{ inputs.modelo }}" ] && ARGS+=( --modelo "${{ inputs.modelo }}" )
+          python gerar_capas.py "${ARGS[@]}"
 
       # O capas.json registra a escolha, a procedencia e a licenca de cada foto,
       # e e dele que a Etapa 2 trabalha -- por isso vai para o repositorio, ao
@@ -145,11 +142,10 @@ jobs:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
-          ARGS="--aplicar"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          python gerar_capas.py $ARGS
+          ARGS=( --aplicar )
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          [ "${{ inputs.substituir }}" = "true" ] && ARGS+=( --substituir )
+          python gerar_capas.py "${ARGS[@]}"
 
       # Recorta as capas que ja existem. A foto e a mesma; muda o
       # enquadramento. A midia antiga fica intacta na biblioteca.
@@ -160,14 +156,10 @@ jobs:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
-          ARGS="--repadronizar"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          if [ -n "${{ inputs.abas }}" ]; then
-            ARGS="$ARGS --abas ${{ inputs.abas }}"
-          fi
-          python gerar_capas.py $ARGS
+          ARGS=( --repadronizar )
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          [ -n "${{ inputs.abas }}" ] && ARGS+=( --abas "${{ inputs.abas }}" )
+          python gerar_capas.py "${ARGS[@]}"
 
       # Reescreve so o alt. Separado porque a repadronizacao e idempotente
       # pelo nome do arquivo: pagina ja padronizada e sempre pulada, e um alt
@@ -179,11 +171,9 @@ jobs:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
-          ARGS="--refazer-alt --abas ${{ inputs.abas }}"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          python gerar_capas.py $ARGS
+          ARGS=( --refazer-alt --abas "${{ inputs.abas }}" )
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          python gerar_capas.py "${ARGS[@]}"
 
       # Le a imagem publicada com um modelo de visao e escreve o alt. O log
       # traz a URL de cada imagem, para a conferencia ser um clique.
@@ -194,14 +184,10 @@ jobs:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
-          ARGS="--legendar"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          if [ -n "${{ inputs.abas }}" ]; then
-            ARGS="$ARGS --abas ${{ inputs.abas }}"
-          fi
-          python gerar_capas.py $ARGS
+          ARGS=( --legendar )
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          [ -n "${{ inputs.abas }}" ] && ARGS+=( --abas "${{ inputs.abas }}" )
+          python gerar_capas.py "${ARGS[@]}"
 
       # O artefato e o ponto do exercicio: e assim que voce ve as imagens que
       # o modelo escolheu, antes de qualquer uma ir para o site.
