@@ -142,6 +142,38 @@ antes de mexer nas outras duas.
 O que o rollback **não** desfaz: 404 que alguém já levou na janela, e a
 reindexação. Por isso a conferência é automática e não depende de alguém olhar.
 
+### Tentado em 14/08/2026 — e revertido pelo próprio script
+
+```
+   ✅ /deeptechs/ responde
+   ❌ /biotechs/ NÃO redireciona: 404 — o endereço antigo deixou de existir
+      link já compartilhado quebraria — desfazendo...
+   ↩️  de volta em /biotechs/ (responde)
+   ⛔ PAREI. As páginas seguintes não foram tocadas.
+```
+
+Conferido no site depois: `/biotechs/` 200, `/deeptechs/` 404, as outras duas
+intactas, `config.py` e botões não alterados.
+
+**Descoberta que fecha a questão: o `_wp_old_slug` não vale para páginas.** O
+núcleo do WordPress, em `wp_check_for_changed_slugs()`, retorna cedo para tipos
+hierárquicos — *"We're only concerned with published, non-hierarchical
+objects"* — e páginas são hierárquicas. Redirecionamento de slug antigo funciona
+para **posts**, não para **pages**.
+
+Somado à ausência de plugin de redirect, **não existe hoje nenhum mecanismo de
+redirecionamento no site**. Renomear qualquer slug de página deixa o endereço
+antigo em 404, ponto.
+
+Para fazer, é preciso antes criar o redirecionamento. O site tem o plugin
+**Code Snippets** instalado (`code-snippets/v1` em `/wp-json/`), então um
+trecho de PHP com o mapa dos três endereços resolveria sem instalar nada novo.
+
+⚠️ Antes disso, vale a pergunta: o ganho é consistência estética de URL.
+`/biotechs/` funciona, está indexado e não atrapalha a automação — `ABAS_LINKS`
+mapeia o endereço real de cada aba. O custo passou a ser mexer no PHP de um
+site de universidade federal para manter um redirecionamento permanente.
+
 ---
 
 ## 5. `AGTECHS` tem botão mas está ignorada — NÃO É PENDÊNCIA
