@@ -491,10 +491,14 @@ def repadronizar(args):
                                                      novo_id, alt)
         novo_pre = pre.replace(bloco_atual, novo_bloco) if novo_bloco else None
         if novo_pre:
-            if not P.tem_preambulo(novo_pre):
-                problemas.append("o CSS ou o campo de busca não sobreviveram")
-            if len(P.conteudo_do_preambulo(novo_pre)[0]) != 1:
-                problemas.append("a página ficou com número inesperado de imagens")
+            # Compara o ANTES com o DEPOIS, e não a página com o padrão: PITCHS
+            # DE STARTUPS e VÍDEOS E PODCASTS têm layout próprio e nunca
+            # tiveram o #search nem a tabela #organization_table. Exigir
+            # conformidade reprovava página sã.
+            if P.tem_preambulo(pre) and not P.tem_preambulo(novo_pre):
+                problemas.append("o CSS ou o campo de busca se perderam")
+            if len(P.conteudo_do_preambulo(novo_pre)[0]) != len(P.conteudo_do_preambulo(pre)[0]):
+                problemas.append("o número de imagens da página mudou")
             if P.texto_editorial(pre) != P.texto_editorial(novo_pre):
                 problemas.append("a descrição da página mudou")
         if problemas:
