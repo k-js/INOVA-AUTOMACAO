@@ -124,12 +124,23 @@ ABAS_IGNORADAS = {
     # como está — não é caso de publicar, nem de tirar o botão. Confirmado com
     # a equipe em 13/08/2026.
     "AGTECHS",
-    # Aguardando criação da página no site
+    # --- Sem página no site, por DOIS motivos diferentes ---
+    #
+    # A distinção importa: "aguardando criação da página" soa como tarefa
+    # nossa, e fazia estas abas serem propostas para publicação. A maioria não
+    # está esperando nada de nós.
+    #
+    # Aguardando a EQUIPE terminar de preencher os dados na planilha.
+    # Não propor criação de página: a aba ainda está em construção.
+    # Situação informada pela equipe em 14/08/2026.
     "BEAUTYTECHS",
     "EVENTECHS",
-    "PORTAIS DE NOTÍCIAS",
     "SECURITYTECHS",
     "SPORTECHS",
+    # Dados prontos; falta só criar a página. Para publicar, mova para
+    # ABAS_AGUARDANDO_PAGINA e tire o nome de ABAS_SEM_PAGINA_NO_SITE no
+    # apps-script/Codigo.gs — senão a aba nem chega em "CHECAR ABAS".
+    "PORTAIS DE NOTÍCIAS",
 }
 
 # Abas cuja página no WordPress ainda está como RASCUNHO.

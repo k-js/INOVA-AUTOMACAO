@@ -47,12 +47,18 @@ var ABAS_ESTRUTURA = [
  * @const
  */
 var ABAS_SEM_PAGINA_NO_SITE = [
-  'AGTECHS',              ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'BEAUTYTECHS',          ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'EVENTECHS',            ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'PORTAIS DE NOTÍCIAS',  ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'SECURITYTECHS',        ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
-  'SPORTECHS'             ///REMOVER LINHA QUANDO CRIAR ABA NO SITE
+  // A página /agtechs/ existe e tem botão em /startups/, mas leva a OUTRO
+  // portfólio: não é alimentada por esta planilha. Está certa assim.
+  'AGTECHS',
+  // Aguardando a EQUIPE terminar de preencher os dados. Não é tarefa nossa —
+  // a aba ainda está em construção. Informado pela equipe em 14/08/2026.
+  'BEAUTYTECHS',
+  'EVENTECHS',
+  'SECURITYTECHS',
+  'SPORTECHS',
+  // Dados prontos; falta só criar a página. Ao criar, tire desta lista E de
+  // ABAS_IGNORADAS no src/config.py.
+  'PORTAIS DE NOTÍCIAS'
   // FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS saíram desta lista:
   // passam a ser varridas por checarAbasComStatus e aparecem em "CHECAR ABAS"
   // quando tiverem STATUS pendente.

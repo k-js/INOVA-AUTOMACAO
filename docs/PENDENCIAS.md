@@ -176,6 +176,42 @@ site de universidade federal para manter um redirecionamento permanente.
 
 ---
 
+## 4. Abas sem página no site — só uma é pendência nossa
+
+Confirmado com a equipe em 14/08/2026. O código listava as cinco juntas, sob o
+comentário *"Aguardando criação da página no site"* — que soa como tarefa nossa
+e fazia todas serem propostas para publicação. São dois estados diferentes:
+
+| Aba | Esperando o quê |
+|---|---|
+| `BEAUTYTECHS` | a equipe terminar de preencher os dados |
+| `EVENTECHS` | idem |
+| `SECURITYTECHS` | idem |
+| `SPORTECHS` | idem |
+| `PORTAIS DE NOTÍCIAS` | **nada — dados prontos, falta só criar a página** |
+
+As quatro primeiras **não são pendência da automação**: a aba ainda está em
+construção, e criar a página agora publicaria uma tabela pela metade. Os
+comentários em `src/config.py` e `apps-script/Codigo.gs` passaram a registrar a
+diferença.
+
+Para publicar `PORTAIS DE NOTÍCIAS` quando for a hora:
+
+1. movê-la de `ABAS_IGNORADAS` para `ABAS_AGUARDANDO_PAGINA` no `src/config.py`
+2. tirar o nome de `ABAS_SEM_PAGINA_NO_SITE` no `apps-script/Codigo.gs` —
+   **editando a linha no editor, sem colar o arquivo todo**, senão o
+   `ID_PLANILHA` é zerado
+3. Actions → *Criar páginas no WordPress*, com `criar_paginas`, `publicar`,
+   `sincronizar_botoes` e `commit`
+
+O passo 2 não é opcional: sem ele a aba nunca aparece em "CHECAR ABAS", e o
+`main.py` não tem como saber que ela existe.
+
+⚠️ O agendamento diário (`atualizar.yml`, 10:00 UTC) **não cria páginas** — só
+publica conteúdo em páginas que já existem. Criar página é sempre manual.
+
+---
+
 ## 5. `AGTECHS` tem botão mas está ignorada — NÃO É PENDÊNCIA
 
 Confirmado com a equipe em 13/08/2026: a página `/agtechs/` leva a **outro
