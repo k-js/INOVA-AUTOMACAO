@@ -540,12 +540,20 @@ def _gravar_alt(aba, pagina, partes, bloco, media_id, alt, dry_run, pasta_backup
         print(f"      ✗ {'; '.join(problemas)}\n")
         return False
 
+    # A conferência compara o ANTES com o DEPOIS, e não a página com o padrão.
+    # São perguntas diferentes: aqui só se troca um atributo, então o que
+    # importa é não ter quebrado nada. Exigir conformidade reprovava a PITCHS
+    # DE STARTUPS, que tem layout próprio — usa #searchInput e não tem a
+    # tabela #organization_table — e estava perfeitamente sã.
     novo_pre = pre.replace(bloco, novo_bloco)
-    if not P.tem_preambulo(novo_pre):
-        print("      ✗ o CSS ou o campo de busca não sobreviveram\n")
+    if P.tem_preambulo(pre) and not P.tem_preambulo(novo_pre):
+        print("      ✗ o CSS ou o campo de busca se perderam\n")
         return False
-    if len(P.conteudo_do_preambulo(novo_pre)[0]) != 1:
-        print("      ✗ a página ficou com número inesperado de imagens\n")
+    if len(P.conteudo_do_preambulo(novo_pre)[0]) != len(P.conteudo_do_preambulo(pre)[0]):
+        print("      ✗ o número de imagens da página mudou\n")
+        return False
+    if len(novo_pre) - len(pre) != len(novo_bloco) - len(bloco):
+        print("      ✗ a substituição mexeu em mais do que o bloco de capa\n")
         return False
 
     if dry_run:
