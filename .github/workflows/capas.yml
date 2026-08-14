@@ -75,13 +75,20 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Os modelos do CLIP e do NSFW somam ~700 MB e sao baixados na primeira
+      # Os modelos de visao somam mais de 1 GB e sao baixados na primeira
       # execucao. O cache evita rebaixa-los a cada rodada.
+      #
+      # A chave inclui src/visao.py, e nao so o requirements: quem define QUAIS
+      # modelos sao baixados e aquele arquivo. Quando acrescentei o BLIP, o
+      # requirements nao mudou, a chave continuou a mesma, o cache antigo (sem
+      # BLIP) foi restaurado e -- por a chave ja existir -- nao foi regravado.
+      # Resultado: 450 MB baixados de novo a cada execucao.
       - name: Cache dos modelos de visão
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-${{ hashFiles('requirements-visao.txt') }}
+          key: hf-${{ hashFiles('requirements-visao.txt', 'src/visao.py') }}
+          restore-keys: hf-
 
       - name: Install dependencies
         run: |
