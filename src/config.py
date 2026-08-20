@@ -132,8 +132,8 @@ ABAS_IGNORADAS = {
     # Não propor criação de página: a aba ainda está em construção.
     # Situação informada pela equipe em 14/08/2026.
     #
-    # SECURITYTECHS saiu daqui em 20/08/2026: publicação pedida pelo professor,
-    # junto com PORTAIS DE NOTÍCIAS. As duas foram para ABAS_AGUARDANDO_PAGINA.
+    # SECURITYTECHS saiu daqui em 20/08/2026, junto com PORTAIS DE NOTÍCIAS:
+    # publicação pedida pelo professor. As duas já estão no ar.
     "BEAUTYTECHS",
     "EVENTECHS",
     "SPORTECHS",
@@ -150,15 +150,14 @@ ABAS_IGNORADAS = {
 #   Actions → "Criar páginas no WordPress" → marcar "Publicar as páginas
 #   em rascunho"
 #
-# FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS passaram por aqui em
-# 30/07/2026 e já aparecem na grade de /startups/.
+# Vazio quando não há nada em rascunho, que é o estado normal. Ficar aqui é
+# passagem, não moradia: assim que a página vai ao ar, o nome sai — senão a
+# lista passa a mentir sobre o que ainda está em rascunho.
 #
-# As duas de agora entraram em 20/08/2026, a pedido do professor. Ao serem
-# publicadas, tire-as desta lista — o próprio script avisa no fim da execução.
-ABAS_AGUARDANDO_PAGINA = {
-    "PORTAIS DE NOTÍCIAS",
-    "SECURITYTECHS",
-}
+# Passaram por aqui: FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS em
+# 30/07/2026; PORTAIS DE NOTÍCIAS e SECURITYTECHS em 20/08/2026, a pedido do
+# professor. Todas publicadas e já na grade de /startups/.
+ABAS_AGUARDANDO_PAGINA = set()
 
 # =========================================================================
 # Roteamento: qual gerador de HTML usar em cada aba
