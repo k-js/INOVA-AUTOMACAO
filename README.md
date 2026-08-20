@@ -193,16 +193,43 @@ Em [docs/PENDENCIAS.md](docs/PENDENCIAS.md) ficam as divergências conhecidas e 
 
 ## 👥 Autoria e manutenção
 
-**Marcos Felipe Lopes Rodrigues**, aluno de Ciências Econômicas da UFPR, criou
-o sistema em maio de 2025: a leitura da planilha, os geradores de HTML e a
-publicação no WordPress — a espinha dorsal que o projeto usa até hoje. Esteve à
-frente dele até setembro de 2025.
+O projeto é mantido e desenvolvido por **Keu Araujo** desde novembro de 2025,
+que responde hoje pelas **39 páginas** publicadas e pelos **6 workflows** que
+as mantêm no ar.
 
-**Keu Araujo** mantém e desenvolve o projeto desde novembro de 2025. Dessa fase
-vêm a criação automática de páginas, as imagens de capa escolhidas por visão
-computacional, as descrições geradas por modelo de linguagem, a sincronização
-de botões, a padronização de preâmbulo e as ferramentas de correção — além da
-manutenção corrente da publicação diária.
+Desta fase vem tudo o que o sistema faz além de converter a planilha em tabela:
+
+**Criação automática de páginas.** Uma aba nova vira página no site — em
+rascunho, já com preâmbulo, capa, descrição e botão na grade — sem ninguém
+escrever HTML.
+
+**Capas escolhidas por visão computacional.** Busca no Pexels e uma esteira
+local que descarta imagem em preto e branco, conteúdo impróprio e foto fora do
+tema, ordena as aprovadas por proximidade com o assunto da página e recorta em
+3:1.
+
+**Acessibilidade.** Texto alternativo em todas as capas, escrito a partir da
+imagem *já recortada e publicada* — a que o visitante realmente vê.
+
+**Descrições geradas por modelo de linguagem**, ancoradas nas categorias que a
+própria aba já tem, e não inventadas a partir do nome.
+
+**Navegação do site.** Grade de botões, endereços apontando direto ao destino
+sem redirecionamento, e a hierarquia entre as páginas.
+
+**Ferramentas que se conferem.** Cada rotina que escreve no site guarda backup
+antes, verifica o resultado depois e desfaz sozinha quando algo não bate —
+porque é um site institucional no ar, e não um rascunho.
+
+Somam-se a isso a operação corrente: publicação diária, validação da planilha
+e a checagem dos **4.595 links** cadastrados.
+
+---
+
+O sistema foi criado em maio de 2025 por **Marcos Felipe Lopes Rodrigues**,
+aluno de Ciências Econômicas da UFPR, que esteve à frente dele até setembro de
+2025. A leitura da planilha, os geradores de HTML e a publicação no WordPress
+vêm dessa primeira versão.
 
 Ambos integrantes do projeto de extensão *Inovação e Desenvolvimento
 Territorial* da UFPR.
