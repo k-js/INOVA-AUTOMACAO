@@ -64,6 +64,7 @@ from preambulo import (
     preambulo_estrutural,
     conferir_preambulo,
     herdou_do_modelo,
+    preservar_voltar,
 )
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
@@ -264,8 +265,15 @@ def main():
             continue
 
         # sufixo da PRÓPRIA página: preserva os <script> de filtro dela.
-        _, bloco, sufixo = partes
-        novo_conteudo = preambulo + bloco + sufixo
+        pre_atual, bloco, sufixo = partes
+
+        # O VOLTAR do modelo aponta para o pai DELE. Nem toda página tem o
+        # mesmo pai desde que PORTAIS DE NOTÍCIAS subiu para /portal-de-inovacao/.
+        preambulo_pagina, preservado = preservar_voltar(preambulo, pre_atual)
+        if preservado:
+            print(f"   ↩️  {aba}: VOLTAR preservado para {preservado}")
+
+        novo_conteudo = preambulo_pagina + bloco + sufixo
 
         backup = salvar_backup(slug, pagina, pasta_backup)
 

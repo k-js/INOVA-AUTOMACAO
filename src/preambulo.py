@@ -213,3 +213,49 @@ def herdou_do_modelo(preambulo_pagina, preambulo_modelo):
     if len(texto_pagina) < 20 or not texto_modelo:
         return False
     return texto_pagina in texto_modelo
+
+
+_VOLTAR = re.compile(r'(<a[^>]*href=")([^"]*)("[^>]*>(?:<strong>)?\s*VOLTAR)',
+                     re.I)
+
+
+def destino_do_voltar(preambulo):
+    """Para onde o botão VOLTAR desta página aponta, ou None."""
+    achado = _VOLTAR.search(preambulo or "")
+    return achado.group(2) if achado else None
+
+
+def preservar_voltar(preambulo_novo, preambulo_atual):
+    """
+    Mantém, no preâmbulo novo, o destino de VOLTAR que a página já tinha.
+
+    O preâmbulo do modelo traz o VOLTAR DELE, e por muito tempo isso não fez
+    diferença: toda página de categoria era filha de /startups/, então copiar o
+    modelo acertava por coincidência.
+
+    Deixou de acertar em 20/08/2026, quando PORTAIS DE NOTÍCIAS passou de
+    /startups/ para /portal-de-inovacao/. Aplicar o modelo mandaria o visitante
+    de volta ao pai errado — e pior, em silêncio, porque a página continuaria
+    parecendo certa.
+
+    Preservar o que a página tem é melhor que uma lista de exceções: não há o
+    que alguém esquecer de atualizar na próxima página que mudar de lugar.
+
+    Devolve (preambulo, destino_preservado_ou_None).
+    """
+    atual = destino_do_voltar(preambulo_atual)
+    if not atual:
+        return preambulo_novo, None
+
+    do_modelo = destino_do_voltar(preambulo_novo)
+    if do_modelo is None or do_modelo == atual:
+        return preambulo_novo, None
+
+    novo = _VOLTAR.sub(lambda m: m.group(1) + atual + m.group(3),
+                       preambulo_novo, count=1)
+
+    # Se a troca não pegou, é melhor não gravar do que gravar o destino errado.
+    if destino_do_voltar(novo) != atual:
+        return preambulo_novo, None
+
+    return novo, atual

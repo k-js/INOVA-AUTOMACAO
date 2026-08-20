@@ -72,9 +72,15 @@ ABAS_ALVO = {
     "GAMETECHS",
     "INSURTECHS",
     "TRAVELTECHS",
-    # Liberadas em 20/08/2026, a pedido do professor.
-    "PORTAIS DE NOTÍCIAS",
+    # Liberada em 20/08/2026, a pedido do professor.
     "SECURITYTECHS",
+    # PORTAIS DE NOTÍCIAS NÃO entra aqui: a página é de /portal-de-inovacao/,
+    # não de /startups/ — portal de notícias não é startup. O botão dela vive
+    # na grade do Portal de Inovação, que é editada à mão (não tem os
+    # marcadores de automação, e a ordem lá é deliberada: STARTUPS vem primeiro).
+    #
+    # Se o nome voltar para esta lista, o botão reaparece em /startups/ na
+    # execução seguinte, desfazendo a correção sem ninguém perceber.
 }
 
 # Correções de rótulo: {rótulo atual: rótulo correto}.
