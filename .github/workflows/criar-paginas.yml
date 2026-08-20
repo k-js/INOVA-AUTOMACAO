@@ -40,6 +40,10 @@ on:
         description: 'Acrescentar em /startups/ os botões que faltam, conforme ABAS_ALVO (faz backup antes)'
         type: boolean
         default: false
+      mover_botoes:
+        description: 'Mover botões entre grades conforme MOVIMENTOS em mover_botao.py (ajusta o VOLTAR junto)'
+        type: boolean
+        default: false
       normalizar_urls_botoes:
         description: 'Apontar os botões de /startups/ direto para o destino (sem redirecionamento)'
         type: boolean
@@ -183,6 +187,33 @@ jobs:
             ARGS="--dry-run --mostrar-modelo"
           fi
           python corrigir_preambulo.py $ARGS
+
+      # Edicao cirurgica: um bloco de botao entra ou sai, e o resto do conteudo
+      # fica byte a byte igual. NAO usa aplicar_botoes, que remontaria a grade
+      # -- em /portal-de-inovacao/ isso reordenaria tudo alfabeticamente e
+      # tiraria o STARTUPS do primeiro lugar, onde alguem o pos de proposito.
+      #
+      # Faz backup de cada pagina antes de gravar, e acrescenta no destino
+      # ANTES de tirar da origem: uma falha no meio deixa o botao nas duas
+      # grades, e nao em nenhuma.
+      - name: Mover botões entre grades
+        if: ${{ inputs.mover_botoes == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS=()
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          python mover_botao.py "${ARGS[@]}"
+
+      - name: Guardar backup das grades
+        if: ${{ always() && inputs.mover_botoes == true && inputs.dry_run == false }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-mover-botoes
+          path: backups/
+          if-no-files-found: warn
+          retention-days: 90
 
       # Onze botoes usam o prefixo /home/ e tres estao sem barra final: todos
       # funcionam, mas dao um ou mais saltos de redirecionamento, o primeiro

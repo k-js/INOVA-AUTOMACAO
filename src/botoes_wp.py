@@ -425,3 +425,189 @@ def gravar_conteudo(pagina_id, conteudo):
         descricao=f"gravar conteúdo da página {pagina_id}",
     )
     return resposta.status_code
+
+
+# ---------------------------------------------------------------------
+# Edição cirúrgica de botões individuais
+# ---------------------------------------------------------------------
+# aplicar_botoes() remonta a grade inteira, e isso tem dois efeitos que nem
+# sempre são desejados: reordena tudo alfabeticamente e reescreve a marcação de
+# cada botão no padrão do gerador.
+#
+# Em /startups/ isso é inofensivo — a grade é gerada e fica entre marcadores.
+# Em /portal-de-inovacao/ não é: ela foi feita à mão, não tem marcadores, e a
+# ordem é deliberada (STARTUPS vem primeiro, e não em ordem alfabética).
+#
+# As funções abaixo mexem em UM bloco, deixando todo o resto byte a byte igual.
+
+# Um botão, com ou sem os comentários de bloco do Gutenberg em volta.
+#
+# O conteúdo bruto de uma página feita à mão pode não ter os comentários
+# <!-- wp:button -->, então eles são opcionais aqui. Quando existem, entram na
+# fatia — senão a remoção deixaria comentários órfãos, e o editor passaria a
+# mostrar a região como "bloco clássico".
+_BLOCO_BOTAO = re.compile(
+    r'(?:<!--\s*wp:button\b.*?-->\s*)?'
+    r'<div class="wp-block-button[^"]*">\s*'
+    r'<a\b[^>]*?href="([^"]*)"[^>]*?>(.*?)</a>\s*'
+    r'</div>'
+    r'(?:\s*<!--\s*/wp:button\s*-->)?',
+    re.S,
+)
+
+
+def listar_blocos_botao(conteudo):
+    """
+    Cada botão do conteúdo bruto, na ordem em que aparece.
+
+    Devolve [(inicio, fim, url, interno, rotulo)], onde `interno` é o HTML de
+    dentro do <a> (que pode trazer <strong>) e `rotulo` é ele sem marcação.
+    """
+    achados = []
+    for m in _BLOCO_BOTAO.finditer(conteudo):
+        interno = m.group(2)
+        rotulo = re.sub(r"<[^>]+>", "", interno).strip()
+        achados.append((m.start(), m.end(), m.group(1), interno, rotulo))
+    return achados
+
+
+def _achar_por_rotulo(blocos, rotulo):
+    alvo = _normalizar(rotulo)
+    for b in blocos:
+        if _normalizar(b[4]) == alvo:
+            return b
+    return None
+
+
+def remover_botao(conteudo, rotulo):
+    """
+    Tira um botão do conteúdo, sem tocar em mais nada.
+
+    Devolve (novo_conteudo, problemas). Em caso de problema, novo_conteudo é
+    None — é melhor não gravar do que gravar pela metade.
+    """
+    blocos = listar_blocos_botao(conteudo)
+    alvo = _achar_por_rotulo(blocos, rotulo)
+    if not alvo:
+        return None, [f"não achei o botão '{rotulo}' na página"]
+
+    inicio, fim = alvo[0], alvo[1]
+
+    # Leva junto o espaço em branco que ficaria sobrando na frente do bloco.
+    while fim < len(conteudo) and conteudo[fim] in "\r\n":
+        fim += 1
+
+    novo = conteudo[:inicio] + conteudo[fim:]
+
+    problemas = _conferir_contagem(conteudo, novo, esperado=-1)
+    if _achar_por_rotulo(listar_blocos_botao(novo), rotulo):
+        problemas.append(f"o botão '{rotulo}' continua na página depois da remoção")
+
+    return (None, problemas) if problemas else (novo, [])
+
+
+def inserir_botao(conteudo, rotulo, url, antes_de):
+    """
+    Acrescenta um botão logo ANTES do botão de rótulo `antes_de`.
+
+    O bloco novo é um CLONE do vizinho, com o endereço e o texto trocados —
+    nunca uma marcação montada por aqui. É a mesma escolha de src/capa.py:
+    copiar um bloco que já funciona acerta as classes, o estilo e o formato do
+    comentário de bloco sem precisar adivinhá-los, ainda mais numa página que
+    foi feita à mão.
+
+    Devolve (novo_conteudo, problemas).
+    """
+    blocos = listar_blocos_botao(conteudo)
+
+    if _achar_por_rotulo(blocos, rotulo):
+        return None, [f"a página já tem um botão '{rotulo}'"]
+
+    ancora = _achar_por_rotulo(blocos, antes_de)
+    if not ancora:
+        return None, [f"não achei o botão '{antes_de}', que serviria de "
+                      f"referência de posição e de modelo"]
+
+    inicio, _, url_ancora, interno_ancora, _ = ancora
+    molde = conteudo[ancora[0]:ancora[1]]
+
+    # Texto: mantém o <strong> se o vizinho usa, para não destoar.
+    interno_novo = (f"<strong>{rotulo}</strong>"
+                    if "<strong>" in interno_ancora.lower() else rotulo)
+
+    novo_bloco = molde.replace(f'href="{url_ancora}"', f'href="{url}"', 1)
+    novo_bloco = novo_bloco.replace(f">{interno_ancora}</a>",
+                                    f">{interno_novo}</a>", 1)
+
+    if f'href="{url}"' not in novo_bloco:
+        return None, ["não consegui trocar o endereço no bloco clonado"]
+    if interno_novo not in novo_bloco:
+        return None, ["não consegui trocar o texto no bloco clonado"]
+
+    novo = conteudo[:inicio] + novo_bloco + "\n" + conteudo[inicio:]
+
+    problemas = _conferir_contagem(conteudo, novo, esperado=+1)
+    depois = listar_blocos_botao(novo)
+    if not _achar_por_rotulo(depois, rotulo):
+        problemas.append("o botão novo não aparece no conteúdo resultante")
+
+    # A ordem dos que já existiam tem que ser exatamente a de antes. É o que
+    # protege o STARTUPS de sair do primeiro lugar.
+    antes_ordem = [b[4] for b in blocos]
+    depois_ordem = [b[4] for b in depois if _normalizar(b[4]) != _normalizar(rotulo)]
+    if antes_ordem != depois_ordem:
+        problemas.append("a ordem dos botões existentes mudou")
+
+    return (None, problemas) if problemas else (novo, [])
+
+
+def trocar_voltar(conteudo, novo_destino):
+    """
+    Aponta o botão VOLTAR para outro lugar, sem tocar em mais nada.
+
+    Devolve (novo_conteudo, destino_anterior, problemas).
+    """
+    padrao = re.compile(r'(<a[^>]*href=")([^"]*)("[^>]*>(?:<strong>)?\s*VOLTAR)',
+                        re.I)
+    achado = padrao.search(conteudo)
+    if not achado:
+        return None, None, ["não achei o botão VOLTAR nesta página"]
+
+    anterior = achado.group(2)
+    if anterior == novo_destino:
+        return None, anterior, []          # nada a fazer, e não é problema
+
+    novo = padrao.sub(lambda m: m.group(1) + novo_destino + m.group(3),
+                      conteudo, count=1)
+
+    esperado = len(novo_destino) - len(anterior)
+    problemas = []
+    if len(novo) - len(conteudo) != esperado:
+        problemas.append("a troca mexeu em mais do que o endereço do VOLTAR")
+    if padrao.search(novo).group(2) != novo_destino:
+        problemas.append("o endereço novo não sobreviveu à substituição")
+
+    return (None, anterior, problemas) if problemas else (novo, anterior, [])
+
+
+def _conferir_contagem(antes, depois, esperado):
+    """
+    Confere que só o número de botões mudou, e só na medida esperada.
+
+    Um <a> ou um <div> a mais ou a menos denuncia bloco cortado pela metade.
+    """
+    problemas = []
+
+    de, para = len(listar_blocos_botao(antes)), len(listar_blocos_botao(depois))
+    if para - de != esperado:
+        problemas.append(f"esperava {esperado:+d} botão(ões), deu {para - de:+d}")
+
+    # Um bloco de botão tem exatamente um <a> e um <div>. Se a fatia cortou
+    # certo, cada uma dessas contagens anda junto com o número de botões.
+    for tag in ("<a ", "</a>", "<div ", "</div>"):
+        variacao = depois.count(tag) - antes.count(tag)
+        if variacao != esperado:
+            problemas.append(f"'{tag}' variou {variacao:+d}, esperava "
+                             f"{esperado:+d} — bloco cortado errado")
+
+    return problemas
