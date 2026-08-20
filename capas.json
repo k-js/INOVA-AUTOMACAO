@@ -1,23 +1,43 @@
 {
- "analisado_em": "2026-08-14T01:58:42",
+ "analisado_em": "2026-08-20T18:57:35",
  "capas": {
-  "PROPRIEDADE INTELECTUAL": {
-   "termo": "intellectual property database",
-   "arquivo": "capa-1234-2.jpg",
-   "alt": "Livros antigos em prateleiras de biblioteca em Londres.",
+  "PORTAIS DE NOTÍCIAS": {
+   "termo": "tech startup newsroom meeting",
+   "arquivo": "capa-portais-de-noticias.jpg",
+   "alt": "Jovens profissionais discutindo ideias em um escritório de startup.",
    "recorte": "2400x800",
    "escolhida": {
     "origem": "Pexels",
     "licenca": "Pexels License (uso comercial, sem atribuição obrigatória)",
-    "url_pagina": "https://www.pexels.com/photo/books-on-shelves-14747971/",
-    "autor": "Bo Ponomari",
-    "url_arquivo": "https://images.pexels.com/photos/14747971/pexels-photo-14747971.jpeg",
-    "original": "6240x4160",
-    "legenda": "A close-up of vintage books on library shelves in London, showcasing an abundance of literary history.",
-    "similaridade": 0.274,
-    "saturacao": 73,
-    "relevancia": 0.955,
-    "pessoas": 0.167,
+    "url_pagina": "https://www.pexels.com/photo/man-in-brown-jacket-sitting-beside-woman-in-blue-jacket-7414216/",
+    "autor": "RDNE Stock project",
+    "url_arquivo": "https://images.pexels.com/photos/7414216/pexels-photo-7414216.jpeg",
+    "original": "6718x4479",
+    "legenda": "A group of young professionals brainstorming ideas in a startup office setting.",
+    "similaridade": 0.27,
+    "saturacao": 48,
+    "relevancia": 0.973,
+    "pessoas": 0.97,
+    "nsfw": 0.0
+   }
+  },
+  "SECURITYTECHS": {
+   "termo": "security camera monitoring station",
+   "arquivo": "capa-securitytechs.jpg",
+   "alt": "Oficial de segurança sentado em sala de controle escura, observando várias telas de vigilância.",
+   "recorte": "2400x800",
+   "escolhida": {
+    "origem": "Pexels",
+    "licenca": "Pexels License (uso comercial, sem atribuição obrigatória)",
+    "url_pagina": "https://www.pexels.com/photo/security-officer-in-dark-control-room-with-monitors-30692441/",
+    "autor": "AMORIE SAM",
+    "url_arquivo": "https://images.pexels.com/photos/30692441/pexels-photo-30692441.jpeg",
+    "original": "7008x4672",
+    "legenda": "Security officer seated in a dimly lit control room, analyzing multiple surveillance screens.",
+    "similaridade": 0.221,
+    "saturacao": 37,
+    "relevancia": 0.787,
+    "pessoas": 0.392,
     "nsfw": 0.0
    }
   }
