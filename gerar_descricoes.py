@@ -373,4 +373,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Modelo aposentado pela Groq não é defeito do código: é catálogo que
+    # mudou. A mensagem de descricao.py já diz quais existem agora, e um
+    # traceback só a esconderia atrás de trinta linhas de pilha.
+    try:
+        main()
+    except descricao.ModeloIndisponivel as erro:
+        print()
+        print("=" * 64)
+        print(erro)
+        print("=" * 64)
+        sys.exit(1)

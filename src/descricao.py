@@ -31,6 +31,11 @@ API_GROQ = "https://api.groq.com/openai/v1"
 # Padrão inicial. O catálogo gratuito da Groq muda com alguma frequência:
 # confira o que a sua chave alcança com `python gerar_descricoes.py
 # --listar-modelos` e troque aqui (ou pela variável de ambiente GROQ_MODELO).
+#
+# ⚠️ Modelo gratuito é aposentado sem aviso: o llama-3.3-70b-versatile saiu do
+# catálogo em 20/08/2026 e passou a devolver 404. Este valor VAI envelhecer.
+# Quando envelhecer, o erro já traz a lista do que a chave alcança na hora —
+# essa lista é a fonte da verdade, não o que está escrito aqui.
 MODELO_PADRAO = os.getenv("GROQ_MODELO", "llama-3.3-70b-versatile")
 
 # Limites tirados das 33 descrições que já estão no site: a mais curta tem 47
@@ -193,8 +198,53 @@ def _completar(mensagens, chave, modelo=None, max_tokens=120, requests_=None):
         timeout=60,
     )
     if resposta.status_code != 200:
-        raise RuntimeError(f"HTTP {resposta.status_code}: {resposta.text[:160]}")
+        raise _erro_da_groq(resposta, modelo or MODELO_PADRAO, chave, requests_)
     return resposta.json()["choices"][0]["message"]["content"].strip().strip('"')
+
+
+class ModeloIndisponivel(RuntimeError):
+    """O modelo pedido saiu do catálogo da Groq, ou a chave não o alcança."""
+
+
+def _erro_da_groq(resposta, modelo, chave, requests_):
+    """
+    Transforma a resposta de erro da Groq em algo acionável.
+
+    Modelo gratuito é aposentado sem aviso — foi o que aconteceu com o
+    llama-3.3-70b-versatile. Antes isso subia como um traceback com um trecho
+    de JSON cortado ao meio, e quem lesse o log não sabia o que fazer. Agora a
+    mensagem já traz os modelos que a chave alcança AGORA, que é a única lista
+    que importa: o catálogo muda, e o que está escrito no código envelhece.
+    """
+    trecho = resposta.text[:200]
+
+    if resposta.status_code == 404 and "model" in trecho.lower():
+        try:
+            disponiveis = listar_modelos(chave, requests_)
+        except Exception:
+            disponiveis = []
+
+        recado = [f"O modelo '{modelo}' não existe mais no catálogo da Groq "
+                  f"(ou esta chave não o alcança)."]
+        if disponiveis:
+            recado.append("")
+            recado.append("Modelos que a sua chave alcança agora:")
+            recado.extend(f"   {m}" for m in disponiveis)
+        recado.append("")
+        recado.append("Escolha um e passe no campo 'modelo' do workflow, ou "
+                      "troque MODELO_PADRAO em src/descricao.py.")
+        return ModeloIndisponivel("\n".join(recado))
+
+    if resposta.status_code == 401:
+        return RuntimeError("A Groq recusou a chave (HTTP 401). Confira o "
+                            "segredo GROQ_API_KEY no repositório.")
+
+    if resposta.status_code == 429:
+        return RuntimeError("Cota da Groq esgotada por enquanto (HTTP 429). "
+                            "Tente mais tarde — a publicação do dia não "
+                            "depende disto.")
+
+    return RuntimeError(f"HTTP {resposta.status_code}: {trecho}")
 
 
 # Palavras curtas de português que praticamente não aparecem num termo em
