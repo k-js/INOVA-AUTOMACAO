@@ -36,6 +36,7 @@ O ciclo completo:
 | **Escolhe capas** | busca no Pexels e analisa cada candidata localmente antes de publicar |
 | **Sincroniza botões** | mantém a grade de /startups/ e aponta cada link direto ao destino |
 | **Padroniza preâmbulo** | CSS das tabelas, campo de busca e botão VOLTAR |
+| **Move botões entre grades** | quando uma página muda de seção — ajusta o VOLTAR junto |
 | **Renomeia slugs** | com conferência automática e reversão se algo não bater |
 
 ### Capa e descrição, em detalhe
@@ -90,6 +91,7 @@ As dependências ficam em **dois arquivos**, de propósito:
 ├── gerar_capas.py           # Escolhe, recorta e publica as imagens de capa
 ├── gerar_descricoes.py      # Escreve a frase de apresentação das páginas
 ├── renomear_slug.py         # Padroniza slugs, conferindo e revertendo sozinho
+├── mover_botao.py           # Move botão entre grades e ajusta o VOLTAR junto
 ├── remover_do_menu.py       # Tira do menu itens que apontam para rascunho
 │
 ├── requirements.txt         # Dependências do dia a dia
@@ -189,9 +191,21 @@ Em [docs/PENDENCIAS.md](docs/PENDENCIAS.md) ficam as divergências conhecidas e 
 
 ---
 
-## 👨‍💻 Autor
+## 👥 Autoria e manutenção
 
-Desenvolvido por **Marcos Felipe Lopes Rodrigues**, aluno de Ciências Econômicas da UFPR e integrante do projeto de extensão *Inovação e Desenvolvimento Territorial*.
+**Marcos Felipe Lopes Rodrigues**, aluno de Ciências Econômicas da UFPR, criou
+o sistema em maio de 2025: a leitura da planilha, os geradores de HTML e a
+publicação no WordPress — a espinha dorsal que o projeto usa até hoje. Esteve à
+frente dele até setembro de 2025.
+
+**Keu Araujo** mantém e desenvolve o projeto desde novembro de 2025. Dessa fase
+vêm a criação automática de páginas, as imagens de capa escolhidas por visão
+computacional, as descrições geradas por modelo de linguagem, a sincronização
+de botões, a padronização de preâmbulo e as ferramentas de correção — além da
+manutenção corrente da publicação diária.
+
+Ambos integrantes do projeto de extensão *Inovação e Desenvolvimento
+Territorial* da UFPR.
 
 ---
 
