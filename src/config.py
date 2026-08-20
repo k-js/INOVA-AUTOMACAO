@@ -124,23 +124,17 @@ ABAS_IGNORADAS = {
     # como está — não é caso de publicar, nem de tirar o botão. Confirmado com
     # a equipe em 13/08/2026.
     "AGTECHS",
-    # --- Sem página no site, por DOIS motivos diferentes ---
-    #
-    # A distinção importa: "aguardando criação da página" soa como tarefa
-    # nossa, e fazia estas abas serem propostas para publicação. A maioria não
-    # está esperando nada de nós.
+    # --- Sem página no site ---
     #
     # Aguardando a EQUIPE terminar de preencher os dados na planilha.
     # Não propor criação de página: a aba ainda está em construção.
     # Situação informada pela equipe em 14/08/2026.
+    #
+    # SECURITYTECHS saiu daqui em 20/08/2026: publicação pedida pelo professor,
+    # junto com PORTAIS DE NOTÍCIAS. As duas foram para ABAS_AGUARDANDO_PAGINA.
     "BEAUTYTECHS",
     "EVENTECHS",
-    "SECURITYTECHS",
     "SPORTECHS",
-    # Dados prontos; falta só criar a página. Para publicar, mova para
-    # ABAS_AGUARDANDO_PAGINA e tire o nome de ABAS_SEM_PAGINA_NO_SITE no
-    # apps-script/Codigo.gs — senão a aba nem chega em "CHECAR ABAS".
-    "PORTAIS DE NOTÍCIAS",
 }
 
 # Abas cuja página no WordPress ainda está como RASCUNHO.
@@ -154,9 +148,15 @@ ABAS_IGNORADAS = {
 #   Actions → "Criar páginas no WordPress" → marcar "Publicar as páginas
 #   em rascunho"
 #
-# Vazio no momento: FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS foram
-# publicadas em 30/07/2026 e já aparecem na grade de /startups/.
-ABAS_AGUARDANDO_PAGINA = set()
+# FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS passaram por aqui em
+# 30/07/2026 e já aparecem na grade de /startups/.
+#
+# As duas de agora entraram em 20/08/2026, a pedido do professor. Ao serem
+# publicadas, tire-as desta lista — o próprio script avisa no fim da execução.
+ABAS_AGUARDANDO_PAGINA = {
+    "PORTAIS DE NOTÍCIAS",
+    "SECURITYTECHS",
+}
 
 # =========================================================================
 # Roteamento: qual gerador de HTML usar em cada aba

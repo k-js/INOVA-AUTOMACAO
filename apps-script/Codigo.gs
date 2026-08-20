@@ -52,13 +52,13 @@ var ABAS_SEM_PAGINA_NO_SITE = [
   'AGTECHS',
   // Aguardando a EQUIPE terminar de preencher os dados. Não é tarefa nossa —
   // a aba ainda está em construção. Informado pela equipe em 14/08/2026.
+  //
+  // SECURITYTECHS e PORTAIS DE NOTÍCIAS saíram daqui em 20/08/2026: publicação
+  // pedida pelo professor. A partir de agora as duas são varridas por
+  // checarAbasComStatus e aparecem em "CHECAR ABAS" quando tiverem STATUS.
   'BEAUTYTECHS',
   'EVENTECHS',
-  'SECURITYTECHS',
-  'SPORTECHS',
-  // Dados prontos; falta só criar a página. Ao criar, tire desta lista E de
-  // ABAS_IGNORADAS no src/config.py.
-  'PORTAIS DE NOTÍCIAS'
+  'SPORTECHS'
   // FASHIONTECHS, GAMETECHS, INSURTECHS e TRAVELTECHS saíram desta lista:
   // passam a ser varridas por checarAbasComStatus e aparecem em "CHECAR ABAS"
   // quando tiverem STATUS pendente.
