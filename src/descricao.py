@@ -36,7 +36,7 @@ API_GROQ = "https://api.groq.com/openai/v1"
 # catálogo em 20/08/2026 e passou a devolver 404. Este valor VAI envelhecer.
 # Quando envelhecer, o erro já traz a lista do que a chave alcança na hora —
 # essa lista é a fonte da verdade, não o que está escrito aqui.
-MODELO_PADRAO = os.getenv("GROQ_MODELO", "llama-3.3-70b-versatile")
+MODELO_PADRAO = os.getenv("GROQ_MODELO", "openai/gpt-oss-120b")
 
 # Limites tirados das 33 descrições que já estão no site: a mais curta tem 47
 # caracteres, a mediana 157, a mais longa 576. A faixa aceita é folgada nas
@@ -159,7 +159,7 @@ def gerar(aba, categorias, exemplos, chave, modelo=None, requests_=None):
                 "messages": mensagens,
                 # Baixa, mas não zero: o texto precisa fluir, não variar.
                 "temperature": 0.3,
-                "max_tokens": 300,
+                "max_tokens": 800,
             },
             timeout=60,
         )
@@ -184,7 +184,7 @@ def gerar(aba, categorias, exemplos, chave, modelo=None, requests_=None):
     return "", ["não passou na conferência em duas tentativas"]
 
 
-def _completar(mensagens, chave, modelo=None, max_tokens=120, requests_=None):
+def _completar(mensagens, chave, modelo=None, max_tokens=600, requests_=None):
     """Uma chamada ao modelo, devolvendo só o texto. Levanta em caso de erro."""
     import requests as _requests
     requests_ = requests_ or _requests
@@ -199,7 +199,22 @@ def _completar(mensagens, chave, modelo=None, max_tokens=120, requests_=None):
     )
     if resposta.status_code != 200:
         raise _erro_da_groq(resposta, modelo or MODELO_PADRAO, chave, requests_)
-    return resposta.json()["choices"][0]["message"]["content"].strip().strip('"')
+    texto = resposta.json()["choices"][0]["message"]["content"]
+    texto = (texto or "").strip().strip('"')
+
+    if not texto:
+        # Sintoma tipico de modelo de raciocinio com max_tokens curto: os
+        # tokens de pensamento consomem a cota e sobra resposta vazia. Sem
+        # este aviso, o vazio seguiria adiante e viraria termo de busca em
+        # branco ou descricao vazia, sem ninguem entender por que.
+        raise RuntimeError(
+            "O modelo '%s' devolveu resposta vazia. Se ele for de raciocinio "
+            "(a familia gpt-oss e), o limite de %d tokens pode ter sido gasto "
+            "no pensamento. Aumente max_tokens em src/descricao.py."
+            % (modelo or MODELO_PADRAO, max_tokens)
+        )
+
+    return texto
 
 
 class ModeloIndisponivel(RuntimeError):
@@ -296,7 +311,7 @@ def termo_de_busca(aba, categorias, chave, modelo=None, requests_=None):
     ]
 
     for _ in (1, 2):
-        termo = _completar(mensagens, chave, modelo, max_tokens=30,
+        termo = _completar(mensagens, chave, modelo, max_tokens=400,
                            requests_=requests_)
         termo = re.sub(r"[^A-Za-z0-9 -]", " ", termo)
         termo = re.sub(r"\s+", " ", termo).strip().lower()[:60]
@@ -354,7 +369,7 @@ def alt_da_legenda(legenda, aba, chave, modelo=None, requests_=None):
             f"Legenda gerada (em inglês): {legenda}\n"
             f"A imagem é a capa da página do setor {aba}.\n\nTexto alternativo:"},
     ]
-    return _completar(mensagens, chave, modelo, max_tokens=80,
+    return _completar(mensagens, chave, modelo, max_tokens=500,
                       requests_=requests_).strip()[:140]
 
 
@@ -382,7 +397,7 @@ def texto_alternativo(legenda, aba, chave, modelo=None, requests_=None):
             f"Descrição da foto (em inglês): {legenda}\n"
             f"Ela ilustra a página do setor {aba}.\n\nTexto alternativo:"},
     ]
-    alt = _completar(mensagens, chave, modelo, max_tokens=80, requests_=requests_)
+    alt = _completar(mensagens, chave, modelo, max_tokens=500, requests_=requests_)
     return alt.strip()[:140]
 
 
@@ -428,5 +443,5 @@ def alt_do_nome_do_arquivo(palavras, aba, chave, modelo=None, requests_=None):
             f"Nome do arquivo: {palavras}\n"
             f"A imagem ilustra a página do setor {aba}.\n\nTexto alternativo:"},
     ]
-    return _completar(mensagens, chave, modelo, max_tokens=80,
+    return _completar(mensagens, chave, modelo, max_tokens=500,
                       requests_=requests_).strip()[:140]
