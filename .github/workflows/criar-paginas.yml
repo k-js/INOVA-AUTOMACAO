@@ -37,7 +37,7 @@ on:
         type: boolean
         default: false
       sincronizar_botoes:
-        description: 'Acrescentar os botões das 4 abas novas em /startups/ (faz backup antes)'
+        description: 'Acrescentar em /startups/ os botões que faltam, conforme ABAS_ALVO (faz backup antes)'
         type: boolean
         default: false
       normalizar_urls_botoes:

@@ -61,11 +61,20 @@ PAGINA_INDICE = "startups"
 #
 # As demais divergências (PET TECHS vs PETTECHS, prefixo /home/ nas URLs) estão
 # em docs/PENDENCIAS.md e são tratadas à parte.
+#
+# A lista CRESCE a cada aba que ganha página. Ela não é "as abas novas desta
+# vez": é o conjunto do que deve ter botão. Quem já tem é pulado sozinho, então
+# manter os nomes antigos aqui não custa nada — e evita que a lista vire um
+# registro de uma leva só, que foi o que aconteceu: ela ficou com as 4 de
+# 30/07/2026 e não sabia das abas liberadas depois.
 ABAS_ALVO = {
     "FASHIONTECHS",
     "GAMETECHS",
     "INSURTECHS",
     "TRAVELTECHS",
+    # Liberadas em 20/08/2026, a pedido do professor.
+    "PORTAIS DE NOTÍCIAS",
+    "SECURITYTECHS",
 }
 
 # Correções de rótulo: {rótulo atual: rótulo correto}.
