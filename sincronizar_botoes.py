@@ -192,6 +192,9 @@ def main():
     parser.add_argument("--incluir-rascunhos", action="store_true",
                         help="adiciona também botões de páginas em rascunho "
                              "(elas dão 404 até serem publicadas)")
+    parser.add_argument("--reordenar", action="store_true",
+                        help="reescreve a grade mesmo sem botão novo, para "
+                             "aplicar a ordem alfabética por linha")
     parser.add_argument("--normalizar-urls", action="store_true",
                         help="aponta cada botão direto para o destino final, "
                              "sem passar por redirecionamento")
@@ -285,12 +288,21 @@ def main():
             print(f"   - {aba}")
         print("   Publique a página no WordPress e rode de novo.")
 
-    if not adicionados and not renomeados:
+    if not adicionados and not renomeados and not args.reordenar:
         print("\nNada a fazer.")
+        print("   (use --reordenar para reescrever a grade mesmo assim)")
         return
 
-    print(f"\n🔤 A grade será reordenada alfabeticamente "
-          f"({len(botoes)} botões no total).")
+    print(f"\n🔤 Ordem alfabética, lendo por LINHA ({len(botoes)} botões):")
+
+    # Mostra como vai ficar ANTES de gravar. A grade tem 2 colunas, e o que
+    # muda aqui é justamente a leitura na horizontal — vale conferir o
+    # resultado, não só o número de botões.
+    previa = sorted(botoes, key=lambda b: botoes_wp._normalizar(b[0]))
+    for i in range(0, len(previa), 2):
+        par = previa[i:i + 2]
+        direita = par[1][0] if len(par) > 1 else ""
+        print(f"     {par[0][0]:<30} {direita}")
 
     mensagem, backup = botoes_wp.aplicar_botoes(
         args.pagina, botoes, dry_run=args.dry_run

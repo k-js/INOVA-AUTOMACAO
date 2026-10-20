@@ -208,22 +208,23 @@ def montar_html_botoes(botoes):
     """
     Monta o HTML da grade a partir de [(rotulo, url)], em ordem alfabética.
 
-    A grade tem 2 colunas preenchidas por COLUNA, não por linha: a primeira
-    metade da lista vai à esquerda, a segunda à direita. Como os blocos são
-    dispostos em sequência, eles precisam ser intercalados
-    (esquerda[0], direita[0], esquerda[1], direita[1], ...).
+    A grade tem 2 colunas e é preenchida POR LINHA: lendo da esquerda para a
+    direita, de cima para baixo, os rótulos saem em ordem alfabética.
+
+        AGTECHS                   CONSTRUTECHS E PROPTECHS
+        DEEPTECHS                 EDTECHS
+
+    Era por COLUNA antes — a primeira metade da lista à esquerda, a segunda à
+    direita, com os blocos intercalados. Alfabético também, mas só descendo
+    cada coluna; quem lia na horizontal via "AGTECHS, INSURTECHS", um salto de
+    A para I, e a ordem parecia aleatória. Trocado em 20/10/2026 a pedido da
+    equipe.
+
+    Como os botões são blocos em sequência, preenchido por linha a ordem do
+    HTML é a própria ordem alfabética — o flex-wrap do Gutenberg faz as
+    colunas sozinho.
     """
     ordenados = sorted(botoes, key=lambda b: _normalizar(b[0]))
-
-    metade = (len(ordenados) + 1) // 2
-    esquerda = ordenados[:metade]
-    direita = ordenados[metade:]
-
-    intercalados = []
-    for i in range(metade):
-        intercalados.append(esquerda[i])
-        if i < len(direita):
-            intercalados.append(direita[i])
 
     # Formato de bloco do Gutenberg: os comentários <!-- wp:... --> são o que
     # faz o editor reconhecer isto como blocos editáveis. Sem eles, o conteúdo
@@ -235,7 +236,7 @@ def montar_html_botoes(botoes):
         '<div class="wp-block-buttons">',
     ]
 
-    for rotulo, url in intercalados:
+    for rotulo, url in ordenados:
         linhas.append(
             '<!-- wp:button {"width":50,"className":"is-style-default"} -->'
         )

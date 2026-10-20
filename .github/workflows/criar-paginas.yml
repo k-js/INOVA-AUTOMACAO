@@ -40,6 +40,10 @@ on:
         description: 'Acrescentar em /startups/ os botões que faltam, conforme ABAS_ALVO (faz backup antes)'
         type: boolean
         default: false
+      reordenar_botoes:
+        description: 'Reordenar a grade de /startups/ em ordem alfabética lendo por linha (faz backup antes)'
+        type: boolean
+        default: false
       mover_botoes:
         description: 'Mover botões entre grades conforme MOVIMENTOS em mover_botao.py (ajusta o VOLTAR junto)'
         type: boolean
@@ -160,10 +164,23 @@ jobs:
           fi
           python sincronizar_botoes.py $ARGS
 
+      # Mesma reescrita da grade, mas sem depender de haver botao novo: a
+      # ordem mudou de "por coluna" para "por linha" e as paginas existentes
+      # precisam ser reescritas uma vez para pegar o formato novo.
+      - name: Reordenar a grade de /startups/
+        if: ${{ inputs.reordenar_botoes == true }}
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          ARGS=( --reordenar )
+          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+          python sincronizar_botoes.py "${ARGS[@]}"
+
       # O backup fica disponivel para download por 90 dias. Sem isso, o
       # arquivo desapareceria junto com o runner ao fim da execucao.
       - name: Guardar backup da página
-        if: ${{ inputs.sincronizar_botoes == true && inputs.dry_run == false }}
+        if: ${{ always() && (inputs.sincronizar_botoes == true || inputs.reordenar_botoes == true) && inputs.dry_run == false }}
         uses: actions/upload-artifact@v4
         with:
           name: backup-startups
