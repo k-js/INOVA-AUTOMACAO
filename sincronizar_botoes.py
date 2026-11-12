@@ -179,6 +179,87 @@ def normalizar_urls(args):
     print(f"   python sincronizar_botoes.py --restaurar {backup}")
 
 
+# Rótulos que ficam onde estão, fora da ordenação alfabética.
+#
+# VOLTAR é navegação, não item da lista. STARTUPS, na grade do Portal de
+# Inovação, aponta para a seção filha e está em primeiro lugar de propósito —
+# ordenar junto o jogaria para o meio, entre Propriedade Intelectual e Vídeos.
+BOTOES_FIXOS = {
+    "startups": ("VOLTAR",),
+    "portal-de-inovacao": ("VOLTAR", "STARTUPS"),
+}
+
+
+def reordenar(args):
+    """
+    Põe a grade em ordem alfabética DESCENDO as colunas.
+
+    Move os blocos inteiros, sem remontar a grade: cada botão conserva o HTML
+    que já tem. É o que permite rodar isto no Portal de Inovação, cujos
+    rótulos são negrito — aplicar_botoes() os reescreveria no formato do
+    gerador de /startups/, que não usa <strong>.
+    """
+    print("=" * 64)
+    print(f"🔤 ORDEM ALFABÉTICA POR COLUNA EM /{args.pagina}/")
+    print("=" * 64)
+
+    pagina = botoes_wp.obter_pagina(args.pagina)
+    if not pagina:
+        print(f"❌ Página '{args.pagina}' não encontrada.")
+        sys.exit(1)
+
+    conteudo = pagina.get("content", {}).get("raw", "")
+    if not conteudo:
+        print("❌ não consegui ler o conteúdo bruto (verifique as permissões).")
+        sys.exit(1)
+
+    fixos = BOTOES_FIXOS.get(args.pagina, ("VOLTAR",))
+    antes = [b[4] for b in botoes_wp.listar_blocos_botao(conteudo)]
+
+    novo, ordem, problemas = botoes_wp.reordenar_blocos(conteudo, fixos=fixos)
+    if problemas:
+        print(f"❌ não mexi em nada: {'; '.join(problemas)}")
+        sys.exit(1)
+
+    if novo == conteudo:
+        print("✅ A grade já está nessa ordem.")
+        return
+
+    print(f"\n{len(ordem)} botões · fixos: {', '.join(fixos)}\n")
+    print("Como vai ficar na tela:\n")
+
+    travados = {botoes_wp._normalizar(f) for f in fixos}
+    corpo = [r for r in ordem if botoes_wp._normalizar(r) not in travados]
+    for r in ordem:
+        if botoes_wp._normalizar(r) in travados:
+            print(f"   {r}   (fixo)")
+
+    metade = (len(corpo) + 1) // 2
+    for i in range(metade):
+        esquerda = corpo[i * 2]
+        direita = corpo[i * 2 + 1] if i * 2 + 1 < len(corpo) else ""
+        print(f"   {esquerda:<34} {direita}")
+
+    mudaram = sum(1 for a, d in zip(antes, ordem) if a != d)
+    print(f"\n{mudaram} botão(ões) mudam de posição "
+          f"(o conteúdo é o mesmo: só a ordem muda).")
+
+    if args.dry_run:
+        print("\n(--dry-run: nada foi alterado)")
+        return
+
+    backup = botoes_wp.salvar_backup(args.pagina, pagina)
+    resposta = botoes_wp.gravar_conteudo(pagina["id"], novo)
+    if resposta != 200:
+        print(f"\n❌ falha ao gravar (HTTP {resposta}). Backup: {backup}")
+        sys.exit(1)
+
+    print(f"\n✅ Grade reordenada em /{args.pagina}/")
+    print(f"💾 Backup: {backup}")
+    print("\nPara desfazer:")
+    print(f"   python sincronizar_botoes.py --restaurar {backup}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
@@ -193,8 +274,9 @@ def main():
                         help="adiciona também botões de páginas em rascunho "
                              "(elas dão 404 até serem publicadas)")
     parser.add_argument("--reordenar", action="store_true",
-                        help="reescreve a grade mesmo sem botão novo, para "
-                             "aplicar a ordem alfabética por linha")
+                        help="põe a grade em ordem alfabética descendo as "
+                             "colunas, movendo os blocos sem reescrever a "
+                             "marcação de cada botão (use com --pagina)")
     parser.add_argument("--normalizar-urls", action="store_true",
                         help="aponta cada botão direto para o destino final, "
                              "sem passar por redirecionamento")
@@ -214,6 +296,10 @@ def main():
 
     if args.restaurar:
         print(botoes_wp.restaurar(args.restaurar, dry_run=args.dry_run))
+        return
+
+    if args.reordenar:
+        reordenar(args)
         return
 
     if args.normalizar_urls:
@@ -288,21 +374,13 @@ def main():
             print(f"   - {aba}")
         print("   Publique a página no WordPress e rode de novo.")
 
-    if not adicionados and not renomeados and not args.reordenar:
+    if not adicionados and not renomeados:
         print("\nNada a fazer.")
-        print("   (use --reordenar para reescrever a grade mesmo assim)")
+        print("   (para só reordenar a grade, use --reordenar)")
         return
 
-    print(f"\n🔤 Ordem alfabética, lendo por LINHA ({len(botoes)} botões):")
-
-    # Mostra como vai ficar ANTES de gravar. A grade tem 2 colunas, e o que
-    # muda aqui é justamente a leitura na horizontal — vale conferir o
-    # resultado, não só o número de botões.
-    previa = sorted(botoes, key=lambda b: botoes_wp._normalizar(b[0]))
-    for i in range(0, len(previa), 2):
-        par = previa[i:i + 2]
-        direita = par[1][0] if len(par) > 1 else ""
-        print(f"     {par[0][0]:<30} {direita}")
+    print(f"\n🔤 A grade será reordenada alfabeticamente "
+          f"({len(botoes)} botões no total).")
 
     mensagem, backup = botoes_wp.aplicar_botoes(
         args.pagina, botoes, dry_run=args.dry_run

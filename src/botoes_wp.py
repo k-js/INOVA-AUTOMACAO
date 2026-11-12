@@ -204,27 +204,119 @@ def listar_backups(slug=None):
 # ---------------------------------------------------------------------
 # Geração dos botões
 # ---------------------------------------------------------------------
+def ordem_por_coluna(ordenados):
+    """
+    Reordena uma lista alfabética para que ela DESÇA em duas colunas.
+
+    O flex-wrap do Gutenberg preenche por linha. Para que a leitura vertical
+    saia alfabética, a sequência precisa ser intercalada: a primeira metade
+    vira a coluna da esquerda, a segunda a da direita.
+
+        entrada:  A B C D E F
+        saída:    A D B E C F     que na tela vira   A D
+                                                     B E
+                                                     C F
+    """
+    metade = (len(ordenados) + 1) // 2
+    esquerda, direita = ordenados[:metade], ordenados[metade:]
+
+    saida = []
+    for i in range(metade):
+        saida.append(esquerda[i])
+        if i < len(direita):
+            saida.append(direita[i])
+    return saida
+
+
+def reordenar_blocos(conteudo, fixos=()):
+    """
+    Reordena os botões MOVENDO os blocos inteiros, sem reescrever marcação.
+
+    A diferença para aplicar_botoes() é o que sobrevive. Aquela função remonta
+    cada botão no formato do gerador; esta só troca os blocos de lugar, então
+    classes, estilos e um eventual <strong> no rótulo continuam exatamente como
+    estavam. Importa porque os botões de /portal-de-inovacao/ são negrito e os
+    de /startups/ não são — remontar emparelharia os dois no formato errado.
+
+    `fixos` são rótulos que não entram na ordenação e ficam na posição em que
+    estão: VOLTAR, que é navegação e não item de lista, e STARTUPS na grade do
+    Portal, que aponta para a seção filha e foi posta em primeiro de propósito.
+
+    Devolve (novo_conteudo, ordem_final, problemas).
+    """
+    blocos = listar_blocos_botao(conteudo)
+    if not blocos:
+        return None, [], ["não achei nenhum botão nesta página"]
+
+    travados = {_normalizar(f) for f in fixos}
+    moveis = [i for i, b in enumerate(blocos) if _normalizar(b[4]) not in travados]
+
+    if len(moveis) < 2:
+        return None, [], ["menos de dois botões para ordenar"]
+
+    # Texto literal de cada bloco móvel, para ser recolocado sem alteração.
+    textos = {i: conteudo[blocos[i][0]:blocos[i][1]] for i in moveis}
+    nova_ordem = ordem_por_coluna(
+        sorted(moveis, key=lambda i: _normalizar(blocos[i][4]))
+    )
+
+    partes = []
+    anterior = 0
+    fila = list(nova_ordem)
+
+    for i, b in enumerate(blocos):
+        partes.append(conteudo[anterior:b[0]])          # separador, intocado
+        if i in textos:
+            partes.append(textos[fila.pop(0)])          # bloco móvel, permutado
+        else:
+            partes.append(conteudo[b[0]:b[1]])          # bloco fixo, no lugar
+        anterior = b[1]
+    partes.append(conteudo[anterior:])
+
+    novo = "".join(partes)
+
+    # Permutar não cria nem destrói nada: o tamanho tem que bater byte a byte.
+    # Se não bater, algum bloco foi cortado errado e é melhor não gravar.
+    problemas = []
+    if len(novo) != len(conteudo):
+        problemas.append(f"o tamanho mudou ({len(conteudo)} -> {len(novo)}); "
+                         "algum bloco foi fatiado errado")
+
+    depois = listar_blocos_botao(novo)
+    if len(depois) != len(blocos):
+        problemas.append(f"{len(blocos)} botões viraram {len(depois)}")
+    elif sorted(b[4] for b in depois) != sorted(b[4] for b in blocos):
+        problemas.append("os rótulos não são os mesmos de antes")
+    elif sorted(b[2] for b in depois) != sorted(b[2] for b in blocos):
+        problemas.append("os endereços não são os mesmos de antes")
+
+    if problemas:
+        return None, [], problemas
+
+    return novo, [b[4] for b in depois], []
+
+
 def montar_html_botoes(botoes):
     """
     Monta o HTML da grade a partir de [(rotulo, url)], em ordem alfabética.
 
-    A grade tem 2 colunas e é preenchida POR LINHA: lendo da esquerda para a
-    direita, de cima para baixo, os rótulos saem em ordem alfabética.
+    A grade tem 2 colunas preenchidas POR COLUNA: a primeira metade da lista
+    desce pela esquerda, a segunda pela direita.
 
-        AGTECHS                   CONSTRUTECHS E PROPTECHS
-        DEEPTECHS                 EDTECHS
+        AGTECHS                   INSURTECHS
+        CONSTRUTECHS E PROPTECHS  LAWTECHS E LEGALTECHS
+        DEEPTECHS                 LOGTECHS
 
-    Era por COLUNA antes — a primeira metade da lista à esquerda, a segunda à
-    direita, com os blocos intercalados. Alfabético também, mas só descendo
-    cada coluna; quem lia na horizontal via "AGTECHS, INSURTECHS", um salto de
-    A para I, e a ordem parecia aleatória. Trocado em 20/10/2026 a pedido da
-    equipe.
+    Esta é a ordem que a equipe usa. Chegou a ser por linha em 20/10/2026, e
+    foi desfeito em 12/11/2026: numa lista longa, descer uma coluna inteira é
+    mais fácil de varrer com o olho do que pular de uma coluna para a outra a
+    cada nome.
 
-    Como os botões são blocos em sequência, preenchido por linha a ordem do
-    HTML é a própria ordem alfabética — o flex-wrap do Gutenberg faz as
-    colunas sozinho.
+    Como os blocos saem em sequência e o flex-wrap preenche por linha, para
+    ver colunas alfabéticas é preciso intercalá-los
+    (esquerda[0], direita[0], esquerda[1], direita[1], ...).
     """
-    ordenados = sorted(botoes, key=lambda b: _normalizar(b[0]))
+    ordenados = ordem_por_coluna(sorted(botoes, key=lambda b: _normalizar(b[0])))
 
     # Formato de bloco do Gutenberg: os comentários <!-- wp:... --> são o que
     # faz o editor reconhecer isto como blocos editáveis. Sem eles, o conteúdo

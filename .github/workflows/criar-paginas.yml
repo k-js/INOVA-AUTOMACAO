@@ -41,7 +41,7 @@ on:
         type: boolean
         default: false
       reordenar_botoes:
-        description: 'Reordenar a grade de /startups/ em ordem alfabética lendo por linha (faz backup antes)'
+        description: 'Reordenar grades em ordem alfabética descendo as colunas, em /startups/ e /portal-de-inovacao/ (faz backup antes)'
         type: boolean
         default: false
       mover_botoes:
@@ -164,18 +164,25 @@ jobs:
           fi
           python sincronizar_botoes.py $ARGS
 
-      # Mesma reescrita da grade, mas sem depender de haver botao novo: a
-      # ordem mudou de "por coluna" para "por linha" e as paginas existentes
-      # precisam ser reescritas uma vez para pegar o formato novo.
-      - name: Reordenar a grade de /startups/
+      # Ordem alfabetica DESCENDO as colunas, nas duas grades.
+      #
+      # Move os blocos inteiros em vez de remontar a grade: os rotulos do
+      # Portal de Inovacao sao negrito e os de /startups/ nao sao, entao
+      # remontar emparelharia os dois no formato errado.
+      #
+      # Roda nas duas paginas em sequencia. Se a primeira falhar o passo para
+      # ali, e a segunda fica como estava -- nada pela metade.
+      - name: Reordenar as grades
         if: ${{ inputs.reordenar_botoes == true }}
         env:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
-          ARGS=( --reordenar )
-          [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
-          python sincronizar_botoes.py "${ARGS[@]}"
+          for PAGINA in startups portal-de-inovacao; do
+            ARGS=( --reordenar --pagina "$PAGINA" )
+            [ "${{ inputs.dry_run }}" = "true" ] && ARGS+=( --dry-run )
+            python sincronizar_botoes.py "${ARGS[@]}"
+          done
 
       # O backup fica disponivel para download por 90 dias. Sem isso, o
       # arquivo desapareceria junto com o runner ao fim da execucao.
