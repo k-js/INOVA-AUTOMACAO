@@ -53,9 +53,20 @@ São as duas partes que fazem uma página nova nascer pronta.
 | NSFW | descarta conteúdo impróprio |
 | relevância | CLIP decide se a imagem tem a ver com o tema — porteira, passa ou não passa |
 | similaridade | CLIP ordena as aprovadas por proximidade com o tema |
-| pessoas | prefere imagem com gente, quando há empate |
+| pessoas | CLIP detecta pessoa em destaque, e essas vão para o **fim** da fila |
 
-A escolhida é recortada em **3:1, até 2400×800**, nunca ampliada. O texto alternativo é escrito por um modelo de legendagem (BLIP) a partir da imagem **já recortada** — a que o visitante vê, e não a original.
+Preferir foto **sem** pessoa reconhecível é a regra de menor risco numa escolha que ninguém revisa — e conversa com a restrição da própria licença do Pexels.
+
+A escolhida é recortada em **3:1, até 2400×800**, nunca ampliada.
+
+**O texto alternativo** vem de dois caminhos, conforme o que existe:
+
+| Situação | Como o alt é escrito |
+|---|---|
+| capa nova | a legenda em inglês que o Pexels já traz, reescrita em português pelo modelo de linguagem |
+| capa antiga, sem legenda nenhuma | **BLIP** olha a imagem *já recortada e publicada* e descreve; o modelo de linguagem traduz |
+
+O segundo caminho (`--legendar`) foi o que preencheu o alt das 33 capas que já existiam.
 
 ---
 
